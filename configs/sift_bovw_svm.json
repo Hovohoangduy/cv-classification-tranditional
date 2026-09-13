@@ -1,0 +1,17 @@
+{
+  "name": "E3_sift_bovw_svm",
+  "features": "outputs/features/sift_bovw.npz",
+  "model": "linear_svm",
+  "model_parameters": {
+    "learning_rate": 0.01,
+    "regularization": 0.0001,
+    "epochs": 30,
+    "batch_size": 256,
+    "seed": 42,
+    "verbose": true
+  },
+  "model_output": "outputs/models/sift_bovw_svm.pkl",
+  "metrics_output": "outputs/metrics/sift_bovw_svm.json",
+  "confusion_output": "outputs/figures/sift_bovw_svm_confusion.png"
+}
+

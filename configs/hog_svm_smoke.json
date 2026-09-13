@@ -1,0 +1,16 @@
+{
+  "name": "smoke_hog_svm_1000",
+  "features": "outputs/features/hog_smoke.npz",
+  "model": "linear_svm",
+  "model_parameters": {
+    "learning_rate": 0.01,
+    "regularization": 0.0001,
+    "epochs": 15,
+    "batch_size": 128,
+    "seed": 42,
+    "verbose": true
+  },
+  "model_output": "outputs/models/hog_svm_smoke.pkl",
+  "metrics_output": "outputs/metrics/hog_svm_smoke.json",
+  "confusion_output": "outputs/figures/hog_svm_smoke_confusion.png"
+}

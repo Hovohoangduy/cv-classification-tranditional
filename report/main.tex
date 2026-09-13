@@ -1,0 +1,342 @@
+\documentclass[10pt,a4paper]{article}
+\usepackage{fontspec}
+\setmainfont{Times New Roman}[
+  Path=/System/Library/Fonts/Supplemental/,
+  UprightFont=Times New Roman.ttf,
+  BoldFont=Times New Roman Bold.ttf,
+  ItalicFont=Times New Roman Italic.ttf,
+  BoldItalicFont=Times New Roman Bold Italic.ttf
+]
+\usepackage[margin=1.75cm]{geometry}
+\usepackage{amsmath,booktabs,graphicx,microtype,url,array}
+\usepackage[hidelinks]{hyperref}
+\renewcommand{\abstractname}{Tóm tắt}
+\renewcommand{\tablename}{Bảng}
+\renewcommand{\figurename}{Hình}
+\renewcommand{\refname}{Tài liệu tham khảo}
+\title{Phân loại CIFAR-10 bằng đặc trưng thị giác và học máy truyền thống}
+\author{Tên sinh viên}
+\date{Ngày 13 tháng 9 năm 2026}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Báo cáo xây dựng và kiểm chứng một pipeline phân loại CIFAR-10 bằng phương pháp
+thị giác máy tính truyền thống. HOG, SIFT ở mức học thuật, Bag of Visual Words,
+SVM tuyến tính và Random Forest được cài đặt từ đầu; NumPy chỉ đảm nhận phép toán
+mảng và đại số tuyến tính. Trên toàn bộ 10.000 ảnh test, HOG--SVM đạt accuracy
+0,5364 và macro-F1 0,5351, cao hơn pixel--SVM lần lượt 15,74 và 15,88 điểm phần
+trăm. Báo cáo bổ sung confusion matrix, kết quả theo lớp, đường hội tụ, ảnh dự đoán
+đúng/sai và phân bố decision margin để làm bằng chứng thực nghiệm. Mã nguồn, seed,
+cấu hình và kết quả trung gian đều được lưu nhằm bảo đảm khả năng tái lập.
+\end{abstract}
+
+\section{Giới thiệu}
+CIFAR-10 gồm 60.000 ảnh màu kích thước $32\times32$, chia đều cho mười lớp
+\cite{krizhevsky2009cifar}. Ảnh nhỏ, nền phức tạp và biến thiên góc nhìn làm cho
+bài toán phù hợp để khảo sát giới hạn của pipeline truyền thống trước thời kỳ deep
+learning. Mục tiêu của project là trả lời ba câu hỏi: HOG tốt hơn pixel thô đến đâu;
+SVM và Random Forest đánh đổi độ chính xác với thời gian thế nào; và đặc trưng
+keypoint SIFT có còn hữu ích trên ảnh rất nhỏ hay không.
+
+Các đóng góp chính gồm: (1) cài đặt pipeline không dùng OpenCV hay scikit-learn
+cho thuật toán chính; (2) tách train/validation/test đúng protocol; (3) cung cấp
+baseline pixel và kết quả HOG trên toàn bộ dữ liệu; (4) lưu prediction artifact để
+truy vết từng dự đoán; và (5) cung cấp chương trình inference cho ảnh mới.
+
+\section{Dữ liệu và tiền xử lý}
+CIFAR-10 có 60.000 ảnh RGB kích thước $32\times32$, cân bằng giữa 10 lớp. Tập
+train chính thức gồm 50.000 ảnh; 10\% được tách phân tầng làm validation. Tập test
+10.000 ảnh chỉ được dùng sau khi chốt cấu hình. Bảng~\ref{tab:split} mô tả cách
+phân chia thực tế.
+
+\begin{table}[ht]
+\centering
+\caption{Phân chia dữ liệu trong thí nghiệm đầy đủ.}
+\label{tab:split}
+\begin{tabular}{lrrl}
+\toprule
+Tập & Số ảnh & Số ảnh/lớp & Vai trò \\
+\midrule
+Train & 45.000 & 4.500 & Fit scaler và mô hình \\
+Validation & 5.000 & 500 & Kiểm tra cấu hình \\
+Test & 10.000 & 1.000 & Đánh giá cuối \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Ảnh được đổi sang \texttt{float32} trong $[0,1]$. Với HOG/SIFT, ảnh xám được tính
+bởi $I=0.299R+0.587G+0.114B$. Với mỗi chiều đặc trưng $d$, chuẩn hóa z-score là
+\begin{equation}
+ \hat{x}_{id}=\frac{x_{id}-\mu_d^{\mathrm{train}}}
+ {\sigma_d^{\mathrm{train}}+\epsilon}.
+\end{equation}
+Mean và độ lệch chuẩn chỉ được ước lượng trên train rồi áp dụng nguyên trạng cho
+validation/test. Visual vocabulary của BoVW cũng chỉ học từ descriptor train. Hai
+quy tắc này ngăn thông tin từ test đi ngược vào quá trình huấn luyện.
+
+\section{Phương pháp}
+\subsection{Histogram of Oriented Gradients}
+Đạo hàm trung tâm cho $g_x,g_y$; độ lớn và hướng là
+\begin{equation}
+ m=\sqrt{g_x^2+g_y^2},\qquad \theta=\operatorname{atan2}(g_y,g_x)\bmod \pi.
+\end{equation}
+Mỗi pixel bỏ phiếu theo $m$ vào hai bin hướng lân cận. Histogram cell được ghép
+thành block và chuẩn hóa L2-Hys. Cài đặt dùng cell $4\times4$, block $2\times2$ và
+9 bin làm cấu hình ban đầu, bám theo trực giác của Dalal và Triggs
+\cite{dalal2005hog} nhưng điều chỉnh cho ảnh nhỏ.
+
+Với vector block $v$, hai bước L2-Hys được cài đặt như sau:
+\begin{equation}
+ v' = \frac{v}{\sqrt{\lVert v\rVert_2^2+\epsilon^2}},\quad
+ v''=\frac{\min(v',0.2)}{\sqrt{\lVert\min(v',0.2)\rVert_2^2+\epsilon^2}}.
+\end{equation}
+Một ảnh có $8\times8$ cell, tạo $7\times7$ vị trí block. Mỗi block chứa
+$2\times2\times9=36$ giá trị, do đó descriptor cuối có
+$7\times7\times36=1764$ chiều. Unit test dùng ảnh cạnh ngang/dọc nhân tạo để kiểm
+tra bin hướng, ảnh hằng để kiểm tra trường hợp norm bằng 0, và công thức trên để
+kiểm tra kích thước đầu ra.
+
+\subsection{SIFT và Bag of Visual Words}
+Pyramid Gaussian $L(x,y,\sigma)=G(x,y,\sigma)*I(x,y)$ tạo Difference of Gaussians
+$D=L(k\sigma)-L(\sigma)$. Điểm cực trị được so với lân cận $3\times3\times3$,
+sau đó loại đáp ứng yếu và điểm nằm trên cạnh bằng tỉ số Hessian. Mỗi keypoint được
+gán hướng chính và mô tả bởi 16 histogram, mỗi histogram 8 hướng, tạo vector 128
+chiều \cite{lowe2004sift}. Vì CIFAR-10 quá nhỏ, ảnh được phóng lên $64\times64$ và
+dùng một octave. K-means tự cài đặt tạo visual vocabulary; mỗi ảnh trở thành
+histogram số lần xuất hiện visual word rồi chuẩn hóa L2.
+
+Cụ thể, mỗi descriptor được gán vào tâm gần nhất
+$a_i=\arg\min_k\lVert d_i-c_k\rVert_2^2$. Vector ảnh thứ $n$ là histogram
+$h_{nk}=\sum_i\mathbf{1}[a_i=k]$. Cách biểu diễn này cho độ dài cố định nhưng làm
+mất quan hệ không gian giữa keypoint. Với ảnh CIFAR-10, số keypoint còn nhạy với
+ngưỡng contrast; vì vậy SIFT--BoVW được xem là nhánh mở rộng và chỉ chạy smoke test
+trước khi quyết định chi phí chạy toàn bộ.
+
+\subsection{SVM tuyến tính}
+SVM đa lớp tối ưu hinge loss Crammer--Singer cùng regularization L2:
+\begin{equation}
+ \mathcal{L}=\frac{1}{N}\sum_i\sum_{j\ne y_i}
+ \max(0,s_j-s_{y_i}+1)+\frac{\lambda}{2}\lVert W\rVert_2^2.
+\end{equation}
+Mô hình được tối ưu bằng mini-batch SGD với learning rate giảm theo
+$1/\sqrt{t}$. Dự đoán là lớp có score lớn nhất. SVM được chọn vì margin lớn thường
+hoạt động tốt với vector đặc trưng nhiều chiều \cite{cortes1995svm}.
+
+Trong mỗi batch, ma trận chỉ báo margin dương cung cấp gradient cho $W$ và bias.
+Score của lớp đúng nhận tổng gradient âm của các lớp vi phạm margin. Cách vector
+hóa này tránh vòng lặp theo mẫu. Tại inference, chương trình trả lớp
+$\arg\max_j s_j$ và top-$k$ score; hiệu giữa hai score cao nhất được gọi là
+decision margin. Score này không phải xác suất đã calibration.
+
+\subsection{Random Forest}
+Mỗi cây CART học trên bootstrap sample. Tại mỗi node, chỉ một tập con ngẫu nhiên
+của các chiều HOG và một số threshold ứng viên được xét. Hàm Gini
+$1-\sum_kp_k^2$ chọn split; forest dùng majority vote \cite{breiman2001random}.
+Cách lấy mẫu feature/threshold vừa tạo đa dạng giữa các cây vừa làm cài đặt thuần
+NumPy khả thi trên vector HOG lớn.
+
+Để hạn chế độ phức tạp, mỗi node chỉ thử \texttt{sqrt(d)} feature và 16 threshold
+ngẫu nhiên. Cây dừng theo độ sâu, số mẫu tối thiểu hoặc khi node đã thuần. Phiếu
+của các cây được gom bằng majority vote. Do CART thuần Python/NumPy phải tạo nhiều
+subset trong quá trình đệ quy, cấu hình 50 cây trên 45.000 vector HOG tốn tài
+nguyên hơn đáng kể so với SVM vector hóa; báo cáo chỉ dùng kết quả RF tập nhỏ như
+kiểm chứng chức năng, không dùng nó để tuyên bố hơn/kém trên toàn bộ tập.
+
+\section{Thiết kế cài đặt from scratch}
+Pipeline gồm bốn tầng: loader dữ liệu, trích xuất đặc trưng, chuẩn hóa/mô hình và
+đánh giá. Feature cache \texttt{.npz} tách chi phí trích xuất khỏi việc thử mô hình;
+model bundle chứa scaler, trọng số mô hình, tên lớp, tên feature và tham số feature
+để inference dùng đúng phép biến đổi lúc train.
+
+\begin{table}[ht]
+\centering
+\caption{Ranh giới giữa phần tự cài đặt và thư viện nền tảng.}
+\begin{tabular}{>{\raggedright\arraybackslash}p{3.2cm}p{7.3cm}p{3.2cm}}
+\toprule
+Thành phần & Nội dung tự cài đặt & Hỗ trợ thư viện \\
+\midrule
+CIFAR-10 & Đọc pickle, reshape CHW sang HWC, split phân tầng & Python chuẩn \\
+HOG & Gradient, vote hai bin, cell/block, L2-Hys & NumPy array \\
+SIFT--BoVW & Gaussian/DoG, extrema, Hessian, descriptor, k-means & NumPy array \\
+SVM & Multiclass hinge loss, gradient, mini-batch SGD & NumPy BLAS \\
+CART/RF & Gini, split, bootstrap, random feature, voting & NumPy RNG \\
+Đánh giá & Confusion matrix, precision, recall, F1 & NumPy; Matplotlib vẽ hình \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Các test nhỏ kiểm tra từng bất biến toán học trước khi chạy dữ liệu thật: split
+không giao nhau, scaler không sinh NaN ở cột hằng, SVM học được dữ liệu toy phân
+tách tuyến tính, cây học được ngưỡng đơn giản và descriptor SIFT luôn có 128 chiều.
+
+\section{Thiết lập thí nghiệm}
+Hai thí nghiệm chính E0 (pixel--SVM) và E1 (HOG--SVM) dùng 45.000 train, 5.000
+validation và toàn bộ 10.000 test. E2 (HOG--Random Forest) dùng 5 cây
+trên 1.000 train/200 test; E3 (SIFT--BoVW--SVM) dùng vocabulary 16 từ trên 100
+train/20 test. E2/E3 là smoke test chức năng, không phải đối chứng chất lượng với
+E0/E1. Mọi split đều phân tầng và dùng seed 42.
+
+SVM chạy 30 epoch, batch size 256, learning rate đầu 0,01 và
+$\lambda=10^{-4}$. HOG dùng cell $4\times4$, block $2\times2$, 9 bin. Môi trường
+ghi trong artifact là Python 3.9.6 và NumPy 2.0.2. Các số thời gian là wall-clock
+của một lần chạy trên cùng máy; chúng hữu ích để so sánh nội bộ nhưng không nên
+xem là benchmark phần cứng tổng quát.
+
+Với $K=10$ lớp, confusion matrix có phần tử
+$C_{ij}=\sum_n\mathbf{1}[y_n=i\land\hat y_n=j]$. Từ đó tính
+\begin{equation}
+ P_k=\frac{C_{kk}}{\sum_iC_{ik}},\quad
+ R_k=\frac{C_{kk}}{\sum_jC_{kj}},\quad
+ F1_k=\frac{2P_kR_k}{P_k+R_k}.
+\end{equation}
+Macro-F1 là trung bình $F1_k$ của mười lớp, tránh để lớp có kết quả tốt che khuất
+lớp khó. Ngoài accuracy/macro-F1, thí nghiệm lưu toàn bộ prediction, decision
+score, test index, loss theo epoch, thời gian trích xuất, train và inference.
+
+\section{Kết quả và thảo luận}
+\begin{table}[ht]
+\centering
+\caption{Kết quả test sinh tự động từ các tệp metrics. Dấu ``--'' nghĩa là chưa
+chạy thí nghiệm tương ứng.}
+\begin{tabular}{llrrrr}
+\toprule
+Đặc trưng & Mô hình & $N_{test}$ & Accuracy & Macro-F1 & Train (s) \\
+\midrule
+\input{generated_results.tex} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{So sánh baseline và HOG}
+Bảng được tạo trực tiếp bởi \texttt{scripts/generate\_report\_results.py}, không
+điền số liệu thủ công. Trên cùng 10.000 ảnh test, HOG--SVM đạt accuracy 0,5364 và
+macro-F1 0,5351, cao hơn pixel--SVM lần lượt 15,74 và 15,88 điểm phần trăm. Chênh
+lệch gần bằng nhau giữa accuracy và macro-F1 cho thấy cải thiện không chỉ đến từ
+một vài lớp. HOG cần 33,56 giây để trích xuất, so với 0,93 giây của reshape pixel;
+đổi lại vector HOG 1764 chiều ngắn hơn RGB phẳng 3072 chiều, nên train/inference
+SVM lần lượt là 1,62/0,016 giây, thấp hơn 2,80/0,037 giây của pixel.
+
+\begin{figure}[ht]
+\centering
+\begin{minipage}{0.48\textwidth}
+\centering
+\IfFileExists{../outputs/figures/hog_svm_loss.png}{%
+  \includegraphics[width=\linewidth]{../outputs/figures/hog_svm_loss.png}%
+}{\fbox{Chưa có loss curve.}}
+\end{minipage}\hfill
+\begin{minipage}{0.48\textwidth}
+\centering
+\IfFileExists{../outputs/figures/hog_svm_per_class.png}{%
+  \includegraphics[width=\linewidth]{../outputs/figures/hog_svm_per_class.png}%
+}{\fbox{Chưa có biểu đồ theo lớp.}}
+\end{minipage}
+\caption{Hội tụ hinge loss (trái) và precision/recall/F1 theo lớp (phải) của
+HOG--SVM.}
+\end{figure}
+
+Loss train giảm liên tục từ 3,2481 ở epoch 1 xuống 2,2838 ở epoch 30. Độ dốc lớn
+nhất nằm ở năm epoch đầu, sau đó giảm chậm theo lịch learning rate
+$\eta_t=\eta_0/\sqrt{t}$. Không có bước tăng đột biến kéo dài, cho thấy SGD ổn
+định. Tuy nhiên loss chưa phẳng hoàn toàn; tăng epoch hoặc tuning $\lambda$ là một
+hướng cải thiện cần đánh giá bằng validation chứ không bằng test.
+
+\subsection{Phân tích theo lớp và confusion matrix}
+\begin{figure}[ht]
+\centering
+\IfFileExists{../outputs/figures/hog_svm_confusion.png}{%
+  \includegraphics[width=0.51\textwidth]{../outputs/figures/hog_svm_confusion.png}%
+}{\fbox{Chạy HOG--SVM để sinh confusion matrix.}}
+\caption{Confusion matrix HOG--SVM trên 10.000 ảnh test; mỗi lớp có 1.000 ảnh.}
+\end{figure}
+
+Hai lớp tốt nhất theo F1 là \emph{truck} (0,6600) và \emph{automobile} (0,6592).
+\emph{Cat} có recall thấp nhất (0,362), tiếp theo là \emph{bird} (0,387) và
+\emph{dog} (0,416). Hai nhầm lẫn có hướng lớn nhất là
+\emph{dog}$\rightarrow$\emph{cat} (183 ảnh) và
+\emph{cat}$\rightarrow$\emph{dog} (165 ảnh). Ngoài ra có 141 ảnh
+\emph{airplane}$\rightarrow$\emph{ship}, 123 ảnh
+\emph{cat}$\rightarrow$\emph{frog} và 121 ảnh
+\emph{automobile}$\rightarrow$\emph{truck}. Các lỗi này phản ánh việc HOG mã hóa
+hình dạng/cạnh nhưng không biểu diễn tốt texture, màu và ngữ cảnh.
+
+\subsection{Bằng chứng từ prediction và decision margin}
+Toàn bộ 10.000 cặp nhãn thật/dự đoán cùng score được lưu trong
+\texttt{outputs/predictions/hog\_svm.npz}. Mô hình dự đoán đúng 5.364 ảnh và sai
+4.636 ảnh. Decision margin trung bình là 1,049 khi đúng và 0,530 khi sai; trung vị
+tương ứng là 0,880 và 0,401. Như vậy dự đoán đúng nhìn chung tách top-1 khỏi top-2
+rõ hơn, dù hai phân bố vẫn chồng lấn nên margin không thể được hiểu là xác suất.
+
+\begin{figure}[ht]
+\centering
+\IfFileExists{../outputs/figures/hog_svm_margin.png}{%
+  \includegraphics[width=0.58\textwidth]{../outputs/figures/hog_svm_margin.png}%
+}{\fbox{Chưa có phân bố margin.}}
+\caption{Phân bố decision margin của dự đoán đúng và sai trên tập test.}
+\end{figure}
+
+Hình dưới chọn một dự đoán đúng và một dự đoán sai có margin cao cho mỗi lớp thật.
+Màu xanh là đúng, màu đỏ là sai. Các lỗi tự tin cao là bằng chứng quan trọng: ảnh
+máy bay nhìn từ trước bị đoán thành tàu; ô tô góc ngang bị đoán thành máy bay; chim
+trên nền cỏ bị đoán thành hươu; mèo có silhouette rõ bị đoán thành máy bay. Điều
+này cho thấy lỗi không chỉ do score sát nhau mà còn do HOG thiếu màu, texture và
+bố cục toàn cục.
+
+\begin{figure}[ht]
+\centering
+\IfFileExists{../outputs/figures/hog_svm_predictions.png}{%
+  \includegraphics[width=0.92\textwidth]{../outputs/figures/hog_svm_predictions.png}%
+}{\fbox{Chưa có prediction gallery.}}
+\caption{Hai mươi prediction đại diện: hai hàng đầu đúng, hai hàng cuối sai; mỗi
+cột/hàng phủ các lớp thật và ưu tiên mẫu có margin cao.}
+\end{figure}
+
+\section{Inference và khả năng tái lập}
+Sau khi train, \texttt{inference.py} nhận ảnh RGB bất kỳ, đổi về $32\times32$,
+trích xuất đúng loại feature đã lưu trong model bundle, áp dụng scaler của train
+rồi dự đoán. Với CIFAR-10, có thể truy vấn trực tiếp test index. Ví dụ:
+\begin{center}
+\texttt{python inference.py --cifar-index 0 1 2 --top-k 3}
+\end{center}
+Kết quả gồm nguồn ảnh, nhãn top-1, nhãn thật nếu có, trạng thái đúng/sai và top-3
+decision scores. Với ảnh bên ngoài, thay bằng
+\texttt{--image path/to/image.png}; nhiều đường dẫn có thể được inference trong
+một lệnh và \texttt{--output} lưu kết quả JSON.
+
+Quy trình tái lập gồm: tải CIFAR-10 và kiểm MD5; trích xuất/cache feature; train từ
+JSON config; lưu model, metrics và predictions; sinh evidence; cuối cùng sinh bảng
+LaTeX từ metrics JSON. Seed mặc định là 42. Bộ test tự động hiện gồm 15 test cho
+data split, preprocessing, HOG, SIFT/BoVW, SVM, cây/RF, metrics và inference.
+Việc tách prediction artifact khỏi báo cáo giúp truy ngược mọi con số và tạo lại
+gallery mà không cần train lại.
+
+\section{Giới hạn và đe dọa tính hợp lệ}
+SIFT trong project là phiên bản giáo dục một octave, chưa nội suy chính xác vị trí
+keypoint và chưa có mọi tối ưu của thư viện công nghiệp. Random Forest dùng một số
+threshold ngẫu nhiên thay vì duyệt toàn bộ. SURF không được đưa vào pipeline chính:
+nó phức tạp hơn để kiểm chứng trong khi ảnh rất nhỏ không cung cấp đủ cấu trúc đa
+tỉ lệ. Kernel SVM cũng không dùng trên toàn bộ train do ma trận kernel tăng theo
+$O(N^2)$ bộ nhớ.
+
+Kết quả full hiện mới dùng một seed và một cấu hình HOG/SVM, vì vậy chưa lượng hóa
+độ lệch chuẩn giữa các lần chạy hay chứng minh siêu tham số tối ưu. E2/E3 dùng tập
+nhỏ nên chỉ là kiểm tra kỹ thuật. Decision margin chỉ đo khoảng cách score tương
+đối, không phải confidence đã hiệu chỉnh. Gallery ưu tiên mẫu margin cao nhằm bộc
+lộ hành vi mô hình, không phải mẫu ngẫu nhiên đại diện cho phân phối lỗi. Các kết
+luận chính vì thế chỉ dựa trên E0/E1 có cùng 45.000 train và 10.000 test.
+
+\section{Kết luận}
+Project cung cấp một pipeline truyền thống có thể tái lập từ dữ liệu thô tới báo
+cáo kết quả, trong đó các thành phần học thuật chính đều được cài từ đầu. Sau khi
+chạy trên toàn bộ CIFAR-10, HOG--SVM là cấu hình tốt nhất trong hai thí nghiệm có
+cùng quy mô, đạt accuracy 0,5364 và cao hơn pixel--SVM 15,74 điểm phần trăm. Lỗi
+tập trung ở các lớp động vật có hình dáng gần nhau, đặc biệt là cat và dog. Kết quả
+cho thấy pipeline cổ điển vẫn tạo được baseline có ý nghĩa, đồng thời chỉ ra giới
+hạn của đặc trưng cạnh khi cần phân biệt texture và ngữ nghĩa tinh tế. Prediction
+artifact, chương trình inference và bộ kiểm thử giúp kết quả không dừng ở một con
+số accuracy mà có thể được kiểm tra lại ở mức từng ảnh.
+
+\bibliographystyle{plain}
+\bibliography{references}
+\end{document}

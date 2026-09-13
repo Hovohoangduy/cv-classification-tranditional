@@ -1,0 +1,19 @@
+{
+  "name": "E2_hog_random_forest",
+  "features": "outputs/features/hog.npz",
+  "model": "random_forest",
+  "model_parameters": {
+    "num_trees": 50,
+    "max_depth": 15,
+    "min_samples_split": 4,
+    "min_samples_leaf": 2,
+    "max_features": "sqrt",
+    "num_thresholds": 16,
+    "seed": 42,
+    "verbose": true
+  },
+  "model_output": "outputs/models/hog_rf.pkl",
+  "metrics_output": "outputs/metrics/hog_rf.json",
+  "confusion_output": "outputs/figures/hog_rf_confusion.png"
+}
+
