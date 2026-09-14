@@ -1,0 +1,84 @@
+{
+  "num_samples": 10000,
+  "num_correct": 5364,
+  "num_errors": 4636,
+  "accuracy": 0.5364,
+  "mean_margin_correct": 1.0494683980941772,
+  "mean_margin_error": 0.5298073887825012,
+  "median_margin_correct": 0.8804913759231567,
+  "median_margin_error": 0.4011317491531372,
+  "top_confusion_pairs": [
+    {
+      "true": "dog",
+      "predicted": "cat",
+      "count": 183
+    },
+    {
+      "true": "cat",
+      "predicted": "dog",
+      "count": 165
+    },
+    {
+      "true": "airplane",
+      "predicted": "ship",
+      "count": 141
+    },
+    {
+      "true": "cat",
+      "predicted": "frog",
+      "count": 123
+    },
+    {
+      "true": "deer",
+      "predicted": "frog",
+      "count": 121
+    },
+    {
+      "true": "automobile",
+      "predicted": "truck",
+      "count": 121
+    },
+    {
+      "true": "ship",
+      "predicted": "airplane",
+      "count": 115
+    },
+    {
+      "true": "bird",
+      "predicted": "deer",
+      "count": 114
+    },
+    {
+      "true": "bird",
+      "predicted": "dog",
+      "count": 105
+    },
+    {
+      "true": "bird",
+      "predicted": "cat",
+      "count": 102
+    }
+  ],
+  "gallery_indices": [
+    5584,
+    2636,
+    3598,
+    5478,
+    4659,
+    7460,
+    5286,
+    4905,
+    1532,
+    7739,
+    1072,
+    201,
+    9964,
+    790,
+    6510,
+    9853,
+    5727,
+    4036,
+    9963,
+    4550
+  ]
+}

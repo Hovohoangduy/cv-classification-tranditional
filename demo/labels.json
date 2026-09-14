@@ -1,0 +1,68 @@
+{
+  "dataset": "CIFAR-10",
+  "split": "test",
+  "class_names": [
+    "airplane",
+    "automobile",
+    "bird",
+    "cat",
+    "deer",
+    "dog",
+    "frog",
+    "horse",
+    "ship",
+    "truck"
+  ],
+  "images": {
+    "airplane_00885.png": {
+      "label": 0,
+      "class_name": "airplane",
+      "test_index": 885
+    },
+    "automobile_07862.png": {
+      "label": 1,
+      "class_name": "automobile",
+      "test_index": 7862
+    },
+    "bird_06533.png": {
+      "label": 2,
+      "class_name": "bird",
+      "test_index": 6533
+    },
+    "cat_04520.png": {
+      "label": 3,
+      "class_name": "cat",
+      "test_index": 4520
+    },
+    "deer_04262.png": {
+      "label": 4,
+      "class_name": "deer",
+      "test_index": 4262
+    },
+    "dog_08458.png": {
+      "label": 5,
+      "class_name": "dog",
+      "test_index": 8458
+    },
+    "frog_00746.png": {
+      "label": 6,
+      "class_name": "frog",
+      "test_index": 746
+    },
+    "horse_06955.png": {
+      "label": 7,
+      "class_name": "horse",
+      "test_index": 6955
+    },
+    "ship_01866.png": {
+      "label": 8,
+      "class_name": "ship",
+      "test_index": 1866
+    },
+    "truck_00851.png": {
+      "label": 9,
+      "class_name": "truck",
+      "test_index": 851
+    }
+  }
+}
