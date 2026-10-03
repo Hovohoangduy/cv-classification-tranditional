@@ -1,0 +1,406 @@
+{
+  "selection": "First test image of each class in official file order; same ten images for all four networks.",
+  "error_selection": "First ten AlexNet errors among official test indices 0..499, in ascending index order.",
+  "candidate_test_indices": [
+    0,
+    499
+  ],
+  "inference_device": "cpu",
+  "class_names": [
+    "airplane",
+    "automobile",
+    "bird",
+    "cat",
+    "deer",
+    "dog",
+    "frog",
+    "horse",
+    "ship",
+    "truck"
+  ],
+  "models": {
+    "alexnet": {
+      "checkpoint": "outputs/deep_models_200_gn/alexnet.pt",
+      "checkpoint_sha256": "c40924d730e80c8d9ed4e76ea53d20aa62f9a8849b3a64d784df5cde3722ef5d",
+      "epoch": 193,
+      "shared_examples": [
+        {
+          "test_index": 3,
+          "actual": "airplane",
+          "predicted": "airplane",
+          "top1_probability": 0.9999827146530151,
+          "correct": true
+        },
+        {
+          "test_index": 6,
+          "actual": "automobile",
+          "predicted": "automobile",
+          "top1_probability": 0.8132712841033936,
+          "correct": true
+        },
+        {
+          "test_index": 25,
+          "actual": "bird",
+          "predicted": "bird",
+          "top1_probability": 0.6480523347854614,
+          "correct": true
+        },
+        {
+          "test_index": 0,
+          "actual": "cat",
+          "predicted": "cat",
+          "top1_probability": 1.0,
+          "correct": true
+        },
+        {
+          "test_index": 22,
+          "actual": "deer",
+          "predicted": "deer",
+          "top1_probability": 1.0,
+          "correct": true
+        },
+        {
+          "test_index": 12,
+          "actual": "dog",
+          "predicted": "dog",
+          "top1_probability": 1.0,
+          "correct": true
+        },
+        {
+          "test_index": 4,
+          "actual": "frog",
+          "predicted": "frog",
+          "top1_probability": 1.0,
+          "correct": true
+        },
+        {
+          "test_index": 13,
+          "actual": "horse",
+          "predicted": "horse",
+          "top1_probability": 1.0,
+          "correct": true
+        },
+        {
+          "test_index": 1,
+          "actual": "ship",
+          "predicted": "ship",
+          "top1_probability": 1.0,
+          "correct": true
+        },
+        {
+          "test_index": 11,
+          "actual": "truck",
+          "predicted": "truck",
+          "top1_probability": 1.0,
+          "correct": true
+        }
+      ],
+      "error_examples": [
+        {
+          "test_index": 24,
+          "actual": "dog",
+          "predicted": "deer",
+          "top1_probability": 0.999995231628418,
+          "correct": false
+        },
+        {
+          "test_index": 32,
+          "actual": "deer",
+          "predicted": "bird",
+          "top1_probability": 0.7490543723106384,
+          "correct": false
+        },
+        {
+          "test_index": 33,
+          "actual": "dog",
+          "predicted": "bird",
+          "top1_probability": 0.9998605251312256,
+          "correct": false
+        },
+        {
+          "test_index": 35,
+          "actual": "bird",
+          "predicted": "ship",
+          "top1_probability": 0.9894384741783142,
+          "correct": false
+        },
+        {
+          "test_index": 37,
+          "actual": "automobile",
+          "predicted": "truck",
+          "top1_probability": 0.9996138215065002,
+          "correct": false
+        },
+        {
+          "test_index": 52,
+          "actual": "airplane",
+          "predicted": "horse",
+          "top1_probability": 0.9993768334388733,
+          "correct": false
+        },
+        {
+          "test_index": 53,
+          "actual": "cat",
+          "predicted": "frog",
+          "top1_probability": 0.6645062565803528,
+          "correct": false
+        },
+        {
+          "test_index": 57,
+          "actual": "horse",
+          "predicted": "dog",
+          "top1_probability": 0.6727877855300903,
+          "correct": false
+        },
+        {
+          "test_index": 58,
+          "actual": "deer",
+          "predicted": "dog",
+          "top1_probability": 0.9891707301139832,
+          "correct": false
+        },
+        {
+          "test_index": 59,
+          "actual": "frog",
+          "predicted": "cat",
+          "top1_probability": 0.9979386925697327,
+          "correct": false
+        }
+      ]
+    },
+    "vgg11": {
+      "checkpoint": "outputs/deep_models_200_gn/vgg11.pt",
+      "checkpoint_sha256": "0d8db2850f737b06ea19da6a51cc3bc24623a370c97218a60d5c44ad1508742b",
+      "epoch": 130,
+      "shared_examples": [
+        {
+          "test_index": 3,
+          "actual": "airplane",
+          "predicted": "airplane",
+          "top1_probability": 1.0,
+          "correct": true
+        },
+        {
+          "test_index": 6,
+          "actual": "automobile",
+          "predicted": "automobile",
+          "top1_probability": 0.9989145994186401,
+          "correct": true
+        },
+        {
+          "test_index": 25,
+          "actual": "bird",
+          "predicted": "cat",
+          "top1_probability": 0.9987941980361938,
+          "correct": false
+        },
+        {
+          "test_index": 0,
+          "actual": "cat",
+          "predicted": "cat",
+          "top1_probability": 1.0,
+          "correct": true
+        },
+        {
+          "test_index": 22,
+          "actual": "deer",
+          "predicted": "deer",
+          "top1_probability": 0.9793905019760132,
+          "correct": true
+        },
+        {
+          "test_index": 12,
+          "actual": "dog",
+          "predicted": "dog",
+          "top1_probability": 0.9858841300010681,
+          "correct": true
+        },
+        {
+          "test_index": 4,
+          "actual": "frog",
+          "predicted": "frog",
+          "top1_probability": 0.9991596937179565,
+          "correct": true
+        },
+        {
+          "test_index": 13,
+          "actual": "horse",
+          "predicted": "horse",
+          "top1_probability": 1.0,
+          "correct": true
+        },
+        {
+          "test_index": 1,
+          "actual": "ship",
+          "predicted": "ship",
+          "top1_probability": 0.8355377912521362,
+          "correct": true
+        },
+        {
+          "test_index": 11,
+          "actual": "truck",
+          "predicted": "truck",
+          "top1_probability": 1.0,
+          "correct": true
+        }
+      ],
+      "error_examples": []
+    },
+    "resnet18": {
+      "checkpoint": "outputs/deep_models_200_gn/resnet18.pt",
+      "checkpoint_sha256": "22a25378676f827ad60eda00a2cd01e0c023dac52303b623092148a3c794c971",
+      "epoch": 184,
+      "shared_examples": [
+        {
+          "test_index": 3,
+          "actual": "airplane",
+          "predicted": "airplane",
+          "top1_probability": 0.9999269247055054,
+          "correct": true
+        },
+        {
+          "test_index": 6,
+          "actual": "automobile",
+          "predicted": "automobile",
+          "top1_probability": 0.9996953010559082,
+          "correct": true
+        },
+        {
+          "test_index": 25,
+          "actual": "bird",
+          "predicted": "bird",
+          "top1_probability": 0.5580614805221558,
+          "correct": true
+        },
+        {
+          "test_index": 0,
+          "actual": "cat",
+          "predicted": "cat",
+          "top1_probability": 0.9998026490211487,
+          "correct": true
+        },
+        {
+          "test_index": 22,
+          "actual": "deer",
+          "predicted": "deer",
+          "top1_probability": 0.9999997615814209,
+          "correct": true
+        },
+        {
+          "test_index": 12,
+          "actual": "dog",
+          "predicted": "dog",
+          "top1_probability": 0.9904446005821228,
+          "correct": true
+        },
+        {
+          "test_index": 4,
+          "actual": "frog",
+          "predicted": "frog",
+          "top1_probability": 0.9999998807907104,
+          "correct": true
+        },
+        {
+          "test_index": 13,
+          "actual": "horse",
+          "predicted": "horse",
+          "top1_probability": 1.0,
+          "correct": true
+        },
+        {
+          "test_index": 1,
+          "actual": "ship",
+          "predicted": "ship",
+          "top1_probability": 0.9985594153404236,
+          "correct": true
+        },
+        {
+          "test_index": 11,
+          "actual": "truck",
+          "predicted": "truck",
+          "top1_probability": 1.0,
+          "correct": true
+        }
+      ],
+      "error_examples": []
+    },
+    "vit_tiny": {
+      "checkpoint": "outputs/deep_models_200_gn/vit_tiny.pt",
+      "checkpoint_sha256": "b6b458693023b50aae3455d7f9aceee96840fd08e37e09bfe1ab320a4bad2fc9",
+      "epoch": 180,
+      "shared_examples": [
+        {
+          "test_index": 3,
+          "actual": "airplane",
+          "predicted": "airplane",
+          "top1_probability": 0.9911751747131348,
+          "correct": true
+        },
+        {
+          "test_index": 6,
+          "actual": "automobile",
+          "predicted": "truck",
+          "top1_probability": 0.4246349036693573,
+          "correct": false
+        },
+        {
+          "test_index": 25,
+          "actual": "bird",
+          "predicted": "bird",
+          "top1_probability": 0.9997081160545349,
+          "correct": true
+        },
+        {
+          "test_index": 0,
+          "actual": "cat",
+          "predicted": "cat",
+          "top1_probability": 0.9999997615814209,
+          "correct": true
+        },
+        {
+          "test_index": 22,
+          "actual": "deer",
+          "predicted": "airplane",
+          "top1_probability": 0.999991774559021,
+          "correct": false
+        },
+        {
+          "test_index": 12,
+          "actual": "dog",
+          "predicted": "dog",
+          "top1_probability": 0.9966709017753601,
+          "correct": true
+        },
+        {
+          "test_index": 4,
+          "actual": "frog",
+          "predicted": "frog",
+          "top1_probability": 1.0,
+          "correct": true
+        },
+        {
+          "test_index": 13,
+          "actual": "horse",
+          "predicted": "dog",
+          "top1_probability": 0.7633313536643982,
+          "correct": false
+        },
+        {
+          "test_index": 1,
+          "actual": "ship",
+          "predicted": "ship",
+          "top1_probability": 0.9959008097648621,
+          "correct": true
+        },
+        {
+          "test_index": 11,
+          "actual": "truck",
+          "predicted": "truck",
+          "top1_probability": 0.999962329864502,
+          "correct": true
+        }
+      ],
+      "error_examples": []
+    }
+  }
+}

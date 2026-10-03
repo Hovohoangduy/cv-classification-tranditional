@@ -1,0 +1,278 @@
+\section{Phương pháp học sâu}
+Các kiến trúc trong phần này được mô tả theo cài đặt tại
+\path{deep_models/models.py}. Kích thước tensor được ghi theo thứ tự
+$C\times H\times W$ cho CNN; $T\times D$ cho ViT; bỏ qua chiều batch $B$.
+Đây là các biến thể cho CIFAR-10, với trọng số được học từ đầu.
+
+\subsection{Nguyên lý chung: học biểu diễn và tối ưu đầu-cuối}
+\textbf{Tích chập.} Một lớp convolution tạo mỗi kênh đầu ra bằng cách kết hợp
+các vùng lân cận trên tất cả kênh đầu vào:
+\begin{equation}
+ a_{o,h,w}=b_o+\sum_{c=1}^{C_{in}}\sum_{u,v}
+ W_{o,c,u,v}\,x_{c,sh+u-p,sw+v-p}.
+\end{equation}
+Kernel $W$ được dùng lại ở nhiều vị trí; $s$ là stride, $p$ là padding.
+Với kích thước đầu vào $H$, kernel $k$ và dilation 1, kích thước đầu ra là
+$H_{out}=\lfloor(H+2p-k)/s\rfloor+1$.
+Ví dụ, kernel $3\times3$, padding 1 và stride 1 giữ nguyên kích thước;
+stride 2 giảm khoảng một nửa. Việc chia sẻ trọng số giúp cùng một mẫu cạnh
+được phát hiện ở nhiều vị trí mà không học một bộ trọng số riêng cho từng pixel.
+
+\textbf{Phi tuyến và gộp thông tin.} ReLU, $\max(0,a)$, làm mạng có khả năng
+biểu diễn quan hệ phi tuyến. Nếu chỉ ghép các lớp tuyến tính, toàn mạng vẫn là
+một phép biến đổi tuyến tính, dù có nhiều lớp. Max-pooling $2\times2$, stride 2
+chọn đáp ứng lớn nhất trong mỗi vùng, giảm kích thước và độ nhạy với dịch chuyển
+nhỏ; nó cũng có thể làm mất chi tiết trên ảnh nhỏ. Global average pooling lấy
+trung bình trên toàn bộ vùng không gian của từng kênh. Qua nhiều lớp, vùng ảnh
+ảnh hưởng đến một đặc trưng (receptive field) mở rộng; biểu diễn có thể kết hợp
+mẫu cục bộ thành cấu trúc lớn hơn phục vụ phân lớp.
+
+\textbf{Học biểu diễn.} Mạng phân loại được viết thành
+$z=g_\theta(f_\phi(I))$, trong đó $f_\phi$ là bộ trích xuất đặc trưng học được,
+$g_\theta$ là bộ phân lớp và $z$ có 10 logit. Với đặc trưng thủ công $h(I)$,
+chỉ bộ phân lớp được học; với học sâu, cả $\phi$ và $\theta$ nhận gradient từ
+cùng mục tiêu. Chẳng hạn, nếu một mẫu màu hoặc đường biên giúp phân biệt
+\emph{ship} với \emph{airplane}, trọng số phía trước có thể được điều chỉnh để
+làm nổi bật mẫu đó. Đây là khả năng của mô hình, không phải khẳng định rằng
+mọi bộ lọc trong lần chạy này đã được giải thích về mặt ngữ nghĩa.
+
+\textbf{Hàm mất mát và quy trình cập nhật.} Với logit $z_{ik}$:
+\begin{equation}
+ p_{ik}=\frac{\exp(z_{ik})}{\sum_{j=1}^{10}\exp(z_{ij})},\qquad
+ \mathcal{L}_{CE}=-\frac{1}{B}\sum_{i=1}^{B}\log p_{i,y_i}.
+\end{equation}
+Mỗi mini-batch được chuẩn hóa, đưa qua mạng, tính cross-entropy, lan truyền
+ngược và cập nhật bằng AdamW. Đạo hàm loss theo logit của một mẫu tỉ lệ với
+$p_{ik}-\mathbf{1}[k=y_i]$, nên lớp sai có điểm cao nhận tín hiệu điều chỉnh
+mạnh. Gradient norm được giới hạn ở 1,0 trước bước optimizer; weight decay
+$10^{-4}$ giúp kiểm soát độ lớn trọng số. Các cơ chế này không bảo đảm hết
+quá khớp, vì còn phụ thuộc dữ liệu, kiến trúc và thời gian huấn luyện.
+
+\textbf{Đánh giá.} Sau mỗi epoch, mạng chuyển sang chế độ evaluation để đo
+accuracy validation và lưu checkpoint tốt nhất. Khi suy luận, dropout được
+vô hiệu hóa, BatchNorm dùng thống kê đã tích lũy; trọng số không cập nhật.
+Nhãn cuối là $\hat y=\arg\max_k z_k$. Softmax chỉ chuyển logit thành phân bố
+điểm tổng bằng 1; điểm cao không bảo đảm dự đoán đúng hay xác suất đã được hiệu chuẩn.
+
+\subsection{AlexNet với GroupNorm}
+\textbf{Ý tưởng kiến trúc.} AlexNet sử dụng tích chập, ReLU, pooling và
+bộ phân lớp có dropout \cite{krizhevsky2012alexnet}. Biến thể CIFAR-10 gồm
+năm convolution, với GroupNorm sau mỗi lớp. Các convolution có stride 1;
+padding 2 cho kernel $5\times5$ và padding 1 cho kernel $3\times3$.
+Vì vậy, chỉ các lớp pooling làm giảm kích thước không gian.
+
+\begin{table}[H]
+\centering\small
+\caption{Luồng tensor của AlexNet trong thí nghiệm. Conv được theo sau bởi GroupNorm và ReLU.}
+\begin{tabular}{lll}
+\toprule
+Bước & Thao tác & Đầu ra \\
+\midrule
+Đầu vào & RGB đã chuẩn hóa & $3\times32\times32$ \\
+1 & Conv $5\times5$, 64 kênh; max-pool & $64\times16\times16$ \\
+2 & Conv $3\times3$, 192 kênh; max-pool & $192\times8\times8$ \\
+3 & Conv $3\times3$, 384 kênh & $384\times8\times8$ \\
+4 & Conv $3\times3$, 256 kênh & $256\times8\times8$ \\
+5 & Conv $3\times3$, 256 kênh; max-pool & $256\times4\times4$ \\
+6 & Adaptive average pooling $2\times2$; flatten & $1024$ \\
+7 & Dropout; Linear $1024\rightarrow512$; ReLU & $512$ \\
+8 & Dropout; Linear $512\rightarrow10$ & $10$ logit \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{GroupNorm.} Tại mỗi mẫu, các kênh được chia thành tám nhóm. Trung bình
+và phương sai được tính trên các kênh và vị trí không gian trong từng nhóm,
+không trên batch \cite{wu2018groupnorm}. Nếu $\mathcal{G}$ là nhóm chứa $a_j$:
+\begin{equation}
+ \hat a_j=\gamma_j\frac{a_j-\mu_{\mathcal G}}
+ {\sqrt{\sigma_{\mathcal G}^2+\epsilon}}+\beta_j.
+\end{equation}
+Với lớp 64 kênh, mỗi nhóm có tám kênh; với lớp 192 kênh, mỗi nhóm có 24 kênh.
+Hệ số scale và bias được học cùng mạng. GroupNorm không cần running mean
+và running variance như BatchNorm, nên cách tính thống kê không phụ thuộc số
+mẫu trong mini-batch. Không thể từ đó kết luận GroupNorm là nguyên nhân duy nhất
+khiến AlexNet đạt kết quả cao nhất; cần thí nghiệm thay riêng lớp chuẩn hóa.
+
+\textbf{Bộ phân lớp và điều chuẩn.} Adaptive pooling giữ lưới $2\times2$,
+cho phép vector cuối còn thông tin vị trí thô. Hai lớp tuyến tính học tổ hợp
+phi tuyến của các đặc trưng tích chập. Dropout 0,5 ngẫu nhiên loại bỏ một nửa
+phần tử ở vị trí dropout khi train và điều chỉnh tỉ lệ phần tử còn lại; khi
+inference dùng toàn bộ phần tử. Cơ chế này hạn chế việc bộ phân lớp phụ thuộc
+quá mạnh vào một số đặc trưng. Mạng có 2.786.890 tham số. So với AlexNet
+ImageNet, ảnh đầu vào, kernel, pooling, chuẩn hóa và classifier đều đã được
+điều chỉnh; vì vậy tên kiến trúc cần được đọc cùng cấu hình trên.
+
+\subsection{VGG11-BN với số kênh giảm}
+\textbf{Ý tưởng kiến trúc.} VGG dùng các convolution $3\times3$ xếp chồng
+\cite{simonyan2015vgg}. Bản cài đặt dùng tám convolution, mỗi lớp có padding 1,
+stride 1, theo sau bởi BatchNorm và ReLU. Hai lớp $3\times3$ liên tiếp có vùng
+nhìn danh nghĩa $5\times5$ trong trường hợp stride 1, đồng thời bổ sung một
+phép phi tuyến giữa chúng. Năm pooling giảm dần kích thước ảnh về $1\times1$.
+
+\begin{table}[H]
+\centering\small
+\caption{Năm stage của VGG11-BN. Mỗi stage kết thúc bằng max-pooling $2\times2$.}
+\begin{tabular}{lllr}
+\toprule
+Stage & Các convolution $3\times3$ & Đầu ra sau pooling & Số conv \\
+\midrule
+1 & $3\rightarrow32$ & $32\times16\times16$ & 1 \\
+2 & $32\rightarrow64$ & $64\times8\times8$ & 1 \\
+3 & $64\rightarrow128\rightarrow128$ & $128\times4\times4$ & 2 \\
+4 & $128\rightarrow256\rightarrow256$ & $256\times2\times2$ & 2 \\
+5 & $256\rightarrow256\rightarrow256$ & $256\times1\times1$ & 2 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{BatchNorm.} Với mỗi kênh, BatchNorm chuẩn hóa activation bằng trung
+bình và phương sai của các mẫu và vị trí không gian trong mini-batch lúc train,
+rồi học scale và bias \cite{ioffe2015batchnorm}. Khi evaluation, lớp này dùng
+thống kê tích lũy thay vì tính lại theo batch test. Điều này làm thao tác train
+và inference khác nhau; chế độ \texttt{model.eval()} là cần thiết để suy luận
+đúng. Khác với GroupNorm của AlexNet, thống kê lúc train phụ thuộc batch.
+
+\textbf{Phân lớp và đánh đổi.} Sau stage 5, flatten tạo 256 đặc trưng, đưa
+thẳng vào lớp tuyến tính $256\rightarrow10$; không dùng các fully connected lớn
+của VGG nguyên bản và không có dropout trong cài đặt này. Mạng có 2.310.186
+tham số, ít nhất trong bốn mạng. Cấu trúc tuần tự dễ triển khai nhưng việc giảm
+$32\rightarrow16\rightarrow8\rightarrow4\rightarrow2\rightarrow1$ có thể
+làm mất chi tiết ở ảnh nhỏ. Dữ liệu không xác nhận riêng tác động của pooling;
+đây là một yếu tố cần kiểm tra khi giải thích chênh lệch với các mạng khác.
+
+\subsection{ResNet18 với kết nối phần dư}
+\textbf{BasicBlock.} Mỗi block chứa hai convolution $3\times3$ kèm BatchNorm;
+ReLU đặt sau convolution thứ nhất và sau phép cộng nhánh tắt. Viết chi tiết:
+\begin{align}
+ F(x)&=\mathrm{BN}_2\bigl(\mathrm{Conv}_2(
+       \mathrm{ReLU}(\mathrm{BN}_1(\mathrm{Conv}_1(x))))\bigr),\\
+ y&=\mathrm{ReLU}\bigl(F(x)+S(x)\bigr).
+\end{align}
+Khi số kênh và kích thước không đổi, $S(x)=x$. Khi đổi kênh hoặc stride 2,
+$S$ là convolution $1\times1$ với cùng stride và BatchNorm, để hai nhánh có
+cùng shape trước phép cộng. Hai convolution trong nhánh $F$ không có bias
+vì đã đi kèm BatchNorm.
+
+\textbf{Vì sao học phần dư?} Thay vì học toàn bộ ánh xạ $H(x)$, nhánh biến đổi
+học $F(x)=H(x)-x$ khi dùng identity shortcut \cite{he2016resnet}.
+Bỏ qua ReLU để xét phép cộng, đạo hàm theo đầu vào là
+$\partial(F(x)+x)/\partial x=\partial F/\partial x+I$.
+Hạng $I$ tạo đường truyền trực tiếp cho gradient. ReLU sau phép cộng vẫn có
+thể chặn một số thành phần; shortcut giúp tối ưu thuận lợi hơn nhưng không
+bảo đảm mọi gradient luôn được giữ nguyên hoặc mạng sâu luôn tốt hơn.
+
+\begin{table}[H]
+\centering\small
+\caption{Các stage của ResNet18 CIFAR; mỗi stage có hai BasicBlock.}
+\begin{tabular}{llll}
+\toprule
+Phần & Số kênh & Stride block đầu & Đầu ra \\
+\midrule
+Stem: Conv $3\times3$ + BN + ReLU & 32 & 1 & $32\times32\times32$ \\
+Stage 1 & 32 & 1 & $32\times32\times32$ \\
+Stage 2 & 64 & 2 & $64\times16\times16$ \\
+Stage 3 & 128 & 2 & $128\times8\times8$ \\
+Stage 4 & 256 & 2 & $256\times4\times4$ \\
+Global average pooling; linear & 256 & -- & $256\rightarrow10$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Điều chỉnh cho ảnh nhỏ.} Stem dùng kernel $3\times3$, stride 1,
+không max-pooling đầu mạng để giữ chi tiết ở độ phân giải $32\times32$.
+Tám BasicBlock có tổng 16 convolution trên nhánh chính; thêm convolution stem
+và lớp tuyến tính cuối tạo cấu trúc ResNet18 thông dụng (không đếm riêng
+convolution projection trong cách gọi này). Base width giảm còn 32, nên mạng
+có 2.797.610 tham số. Global average pooling lấy trung bình trên $4\times4$
+cho mỗi kênh, giảm số tham số classifier. ResNet có đường truyền gradient
+thuận lợi, nhưng mức accuracy cuối vẫn phụ thuộc cách chuẩn hóa, điều chuẩn,
+lịch learning rate và khả năng tổng quát hóa trên dữ liệu đã chọn.
+
+\subsection{Vision Transformer: ViT tiny}
+\textbf{Bước 1: biến ảnh thành token.} Cài đặt dùng convolution kernel 4,
+stride 4 để nhúng patch. Ảnh $3\times32\times32$ tạo lưới $8\times8$ patch;
+mỗi patch có $4\times4\times3=48$ giá trị và được ánh xạ thành vector 192 chiều.
+Flatten lưới và chuyển trục tạo tensor $64\times192$. Thêm class token và
+embedding vị trí học được:
+\begin{equation}
+ Z_0=[x_{cls};\,x_p^1E;\ldots;x_p^{64}E]+E_{pos},\quad
+ E\in\mathbb{R}^{48\times192},\quad E_{pos}\in\mathbb{R}^{65\times192}.
+\end{equation}
+Phép chiếu patch thực tế còn có bias. Class token là một vector học được,
+không phải ảnh hay nhãn thật; nó thu thập thông tin cho quyết định phân lớp.
+Embedding vị trí phân biệt các vị trí trong lưới, vì attention đơn thuần không
+mã hóa thứ tự không gian \cite{dosovitskiy2021vit}.
+
+\textbf{Bước 2: self-attention ba head.} Trong mỗi block, LayerNorm chuẩn hóa
+192 chiều của từng token; một lớp tuyến tính tạo $Q,K,V$. Mỗi head có
+$Q_h,K_h,V_h\in\mathbb{R}^{65\times64}$:
+\begin{equation}
+ A_h=\operatorname{softmax}_{\mathrm{hàng}}\left(
+ \frac{Q_hK_h^\top}{\sqrt{64}}\right),\qquad U_h=A_hV_h.
+\end{equation}
+Mỗi hàng của $A_h\in\mathbb{R}^{65\times65}$ biểu diễn trọng số kết hợp các
+token cho một token truy vấn. Ba $U_h$ được nối thành 192 chiều rồi chiếu
+bằng lớp tuyến tính. Các head có thể học những kiểu quan hệ khác nhau, nhưng
+không có ràng buộc rằng mỗi head phải tương ứng một bộ phận vật thể cụ thể.
+Việc trao đổi thông tin diễn ra giữa mọi cặp token ngay trong một block,
+khác với tích chập chỉ kết hợp lân cận tại từng lớp.
+
+\textbf{Bước 3: MLP và kết nối phần dư.} Sáu block dùng cấu trúc pre-norm,
+đúng theo thứ tự trong mã nguồn:
+\begin{align}
+ Z'_\ell&=Z_{\ell-1}+\mathrm{MSA}(\mathrm{LN}(Z_{\ell-1})),\\
+ Z_\ell&=Z'_\ell+\mathrm{MLP}(\mathrm{LN}(Z'_\ell)),\\
+ \mathrm{MLP}(u)&=W_2\,\mathrm{GELU}(W_1u+b_1)+b_2.
+\end{align}
+MLP mở rộng $192\rightarrow768$ rồi thu về $192$, xử lý từng token với cùng
+trọng số; self-attention đảm nhiệm trao đổi giữa token. LayerNorm không dùng
+thống kê batch hay running statistics. Shape $65\times192$ không đổi qua
+sáu block; hai nhánh cộng phần dư giúp giữ thông tin đầu vào block.
+
+\begin{table}[H]
+\centering\small
+\caption{Luồng tensor của ViT tiny trong cài đặt.}
+\begin{tabular}{lll}
+\toprule
+Bước & Cấu hình & Đầu ra \\
+\midrule
+Patch embedding & Conv kernel 4, stride 4, 192 kênh & $192\times8\times8$ \\
+Chuỗi token & Flatten lưới; thêm class token và vị trí & $65\times192$ \\
+Encoder & 6 block; 3 head; MLP ratio 4 & $65\times192$ \\
+Đầu phân lớp & LayerNorm; lấy class token; Linear & $192\rightarrow10$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Bước 4: phân lớp và giới hạn.} Sau encoder, LayerNorm được áp dụng
+cho biểu diễn class token trước lớp tuyến tính 10 logit. Mạng có 2.693.578
+tham số, không có dropout trong các block và không dùng pretrained.
+Chi phí tạo attention tăng theo $T^2$ với $T=65$; mỗi head có 4.225 trọng số
+attention cho một ảnh. Patch lớn làm chuỗi ngắn hơn nhưng gom nhiều pixel vào
+một token; patch nhỏ tăng số token và chi phí. Trong cấu hình này, ViT có
+khả năng mô hình hóa quan hệ toàn ảnh nhưng phải học từ lượng dữ liệu tương
+đối hạn chế. Cấu trúc đó không tự bảo đảm accuracy cao hơn CNN.
+
+\subsection{Các phương pháp truyền thống làm mốc so sánh}
+Pixel được trải phẳng thành 3.072 chiều, giữ thứ tự các vị trí RGB nhưng không
+có cơ chế tích chập hay chia sẻ trọng số theo không gian. HOG chia ảnh xám thành
+cell $4\times4$, tính histogram 9 hướng gradient, chuẩn hóa trên block
+$2\times2$ chồng lấn và nối thành 1.764 chiều \cite{dalal2005hog}.
+HOG giữ bố cục gradient ở lưới cố định, nhưng không giữ trực tiếp màu RGB.
+
+SIFT phẳng tìm keypoint trong một octave, gán hướng và mô tả mỗi điểm bằng
+128 giá trị; tối đa 64 descriptor được xếp theo độ mạnh, nối và đệm số 0,
+thành 8.192 chiều \cite{lowe2004sift}. Cài đặt này rút gọn SIFT và không dùng
+Bag of Visual Words. Khi keypoint thay đổi thứ tự giữa các ảnh, một chiều
+trong vector không còn chắc chắn mang cùng ý nghĩa; việc phóng ảnh nhỏ lên
+cũng không tạo thêm chi tiết thị giác thực sự.
+
+SVM tuyến tính học các điểm số $s_k=w_k^\top x+b_k$ bằng hinge loss đa lớp
+và điều chuẩn L2 \cite{cortes1995svm}. Dù có nhiều chiều, ranh giới trong
+không gian đặc trưng vẫn tuyến tính. Random Forest dùng nhiều cây học từ mẫu
+bootstrap, chọn ngẫu nhiên đặc trưng khi chia nút và bỏ phiếu nhãn
+\cite{breiman2001random}. Các cây tạo ranh giới phi tuyến nhưng không có
+cơ chế chuyên biệt để ghép mẫu cục bộ thành biểu diễn ảnh nhiều tầng.
+Sáu kết quả của hai bộ phân lớp trên ba loại đầu vào được giữ nguyên trong
+bảng so sánh; chúng là baseline cho cấu hình học sâu đã khảo sát.

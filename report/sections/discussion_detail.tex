@@ -1,0 +1,131 @@
+\subsection{Đọc bảng so sánh: mức cải thiện và số lỗi}
+\textbf{Thứ hạng và ý nghĩa của hai chỉ số.} Trong Bảng~\ref{tab:results},
+AlexNet đứng đầu ở cả accuracy và macro-F1; sau đó là ResNet18, VGG11-BN và
+ViT tiny. Cả bốn mạng đều cao hơn sáu baseline. HOG--SVM là baseline mạnh nhất,
+đạt 53,19\% accuracy, nên được chọn làm mốc phân tích mức cải thiện trong
+Bảng~\ref{tab:gains}. Đây là mốc đối chiếu kết quả, không phải cấu hình được
+chọn để điều chỉnh các mạng bằng test.
+
+\begin{table}[H]
+\centering\small
+\caption{Mức cải thiện so với HOG--SVM trên cùng 10.000 ảnh test; ``đpt'' là điểm phần trăm.}
+\label{tab:gains}
+\begin{tabular}{lrrrr}
+\toprule
+Mạng & Tăng accuracy (đpt) & Tăng macro-F1 (đpt) & Số lỗi & Giảm lỗi tương đối \\
+\midrule
+\input{assets/results/deep_gains.tex} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+HOG--SVM phân loại sai 4.681 ảnh; AlexNet sai 1.613 ảnh, tức ít hơn 3.068 ảnh.
+Mức tăng accuracy 30,68 điểm phần trăm tương ứng giảm khoảng 65,54\% số lỗi
+so với baseline, không phải tăng 30,68\% tương đối về accuracy.
+ResNet18, VGG11-BN và ViT tiny lần lượt giảm 2.826, 2.633 và 1.502 lỗi.
+Vì cùng dùng tập test 10.000 ảnh, số ảnh đúng và sai có thể đối chiếu trực tiếp.
+Tuy nhiên, số liệu tổng hợp không cho biết chính xác ảnh nào được sửa đúng
+hay ảnh nào mới bị sai; cần dự đoán ghép theo cùng test index để phân tích đó.
+
+Accuracy và macro-F1 của mỗi mạng khá gần nhau: chênh khoảng 0,06 điểm phần
+trăm ở AlexNet, 0,04 ở ResNet18, 0,08 ở VGG11-BN và 0,18 ở ViT tiny.
+Cải thiện vì vậy vẫn thể hiện khi mỗi lớp được cho trọng số ngang nhau trong
+macro-F1. Điều này không có nghĩa mọi lớp có chất lượng giống nhau; chẳng hạn
+AlexNet vẫn có F1 của \emph{cat} thấp hơn rõ rệt so với \emph{automobile}.
+SIFT--Random Forest có accuracy 18,57\% nhưng macro-F1 chỉ 14,33\%, gợi ý
+hiệu quả phân lớp mất cân đối hơn và cần kiểm tra chỉ số từng lớp.
+
+\subsection{Vì sao học sâu đạt kết quả tốt hơn các baseline?}
+\textbf{1. Đặc trưng được học theo mục tiêu phân lớp.} HOG và SIFT cố định
+cách lấy gradient hoặc descriptor trước khi học classifier. Nếu thông tin
+hữu ích bị bỏ ở bước biểu diễn, SVM hay Random Forest không thể khôi phục từ
+vector đã mất thông tin. Với mạng sâu, sai số từ nhãn truyền ngược tới các
+lớp đầu, điều chỉnh cả bộ lọc lẫn bộ phân lớp. Mạng có thể chọn những tổ hợp
+cạnh, màu và kết cấu phù hợp với 10 lớp trong train, thay vì dùng cùng một
+quy tắc trích xuất thủ công cho mọi đối tượng. Trong bảng, ưu thế xuất hiện
+ở cả ba CNN lẫn ViT, phù hợp với lợi ích của học biểu diễn theo nhiệm vụ.
+
+\textbf{2. Khai thác không gian và thông tin màu.} Các mạng nhận ảnh RGB và
+xử lý cấu trúc ảnh thông qua tích chập hoặc embedding vị trí patch.
+HOG và SIFT ở đây dùng ảnh xám, nên không trực tiếp giữ khác biệt giữa các
+mảng màu có mức sáng tương tự. Pixel thô vẫn giữ RGB và thứ tự vị trí,
+nhưng Linear SVM chỉ áp dụng một tổ hợp tuyến tính trên toàn vector.
+Khi vị trí vật thể thay đổi, một bộ trọng số gắn với từng tọa độ cố định có
+thể kém linh hoạt. CNN tái sử dụng cùng bộ lọc ở nhiều vị trí; pooling và
+các tầng sau kết hợp đáp ứng cục bộ. ViT giữ vị trí token và dùng attention
+để kết hợp các vùng. Ưu thế này không đồng nghĩa mạng bất biến hoàn toàn với
+mọi phép dịch chuyển, xoay hay thay đổi nền.
+
+\textbf{3. Tạo tổ hợp phi tuyến nhiều tầng.} SVM tuyến tính không tự tạo
+các tương tác phi tuyến mới giữa chiều đặc trưng. Random Forest có thể học
+quy tắc phi tuyến, nhưng các phép chia một chiều không cung cấp cấu trúc học
+mẫu không gian như convolution hay attention. Ở mạng sâu, convolution/linear,
+ReLU hoặc GELU và các tầng liên tiếp tạo nhiều mức tổ hợp. Chẳng hạn, một
+đường viền đơn lẻ có thể xuất hiện ở nhiều lớp; kết hợp đường viền với màu,
+vị trí và các vùng lân cận có thể giúp phân biệt tốt hơn. Điều này giải thích
+về mặt cơ chế vì sao tăng độ linh hoạt của biểu diễn có thể nâng accuracy.
+
+\textbf{4. Tránh vấn đề thứ tự descriptor của SIFT phẳng.} SIFT--SVM đạt
+22,92\% và SIFT--Random Forest đạt 18,57\%, thấp hơn cả các baseline pixel.
+Trong vector SIFT nối trực tiếp, descriptor thứ nhất của một ảnh có thể nằm
+ở cánh máy bay, nhưng descriptor thứ nhất của ảnh khác nằm ở nền. Việc đệm
+0 còn tạo khác biệt theo số keypoint. Trái lại, CNN giữ lưới không gian qua
+các feature map; ViT gán embedding vị trí và có phép kết hợp token học được.
+Cả hai không yêu cầu các điểm mạnh nhất phải xuất hiện theo cùng thứ tự.
+Kết quả thấp này là hạn chế của SIFT phẳng rút gọn đang dùng, không phải bằng
+chứng rằng mọi pipeline SIFT đều kém; SIFT--BoVW hoặc spatial pooling có thể
+thay đổi biểu diễn và cần được đánh giá riêng.
+
+\textbf{5. Số tham số, tối ưu và điều chuẩn cũng khác nhau.} Các mạng có
+khoảng 2,31--2,80 triệu tham số và được tối ưu bằng AdamW, trong khi SVM là
+mô hình tuyến tính và Random Forest dùng cấu trúc cây. Chuẩn hóa activation,
+weight decay, gradient clipping và dropout trong AlexNet góp phần định hình
+quá trình học. Do đó, bảng chứng minh hiệu quả của toàn bộ cấu hình học sâu
+đã chạy; chưa tách riêng ảnh hưởng của học đặc trưng, giữ RGB, kích thước mô
+hình hay optimizer. Muốn xác định nguyên nhân định lượng, cần ablation như
+CNN trên ảnh xám, classifier tuyến tính trên embedding CNN cố định, hoặc
+thay đổi một thành phần điều chuẩn trong khi giữ các yếu tố khác giống nhau.
+
+\subsection{Vì sao thứ hạng giữa các mô hình lại như trong bảng?}
+\textbf{Trong nhóm baseline.} Pixel--Random Forest đạt 45,09\%, hơn
+Pixel--SVM 7,52 điểm phần trăm, phù hợp với lợi ích của ranh giới phi tuyến
+trên đầu vào màu thô. Khi chuyển sang HOG, SVM đạt 53,19\%, cao hơn Random
+Forest 6,46 điểm phần trăm. Đặc trưng histogram nhiều chiều đã mã hóa hình
+dạng ở lưới cố định, có thể phù hợp hơn với bộ phân lớp dùng đồng thời nhiều
+chiều. Random Forest giới hạn độ sâu 15 và xét một tập chiều nhỏ ở mỗi nút;
+việc mô hình hóa các tổ hợp rộng của gradient có thể đòi hỏi nhiều phép chia.
+Các lý giải này cần kiểm tra bằng điều chỉnh siêu tham số, không đủ để khẳng
+định SVM luôn tốt hơn Random Forest trên HOG.
+
+\textbf{AlexNet và hai CNN còn lại.} AlexNet cao hơn ResNet18 2,42 điểm phần
+trăm và VGG11-BN 4,35 điểm phần trăm accuracy. AlexNet có GroupNorm, dropout
+0,5 ở classifier và còn giữ lưới $2\times2$ sau adaptive pooling; VGG dùng
+pooling tới $1\times1$, ResNet dùng global average pooling. Các lựa chọn
+này ảnh hưởng cách giữ vị trí, khả năng biểu diễn và điều chuẩn. VGG có ít
+tham số nhất, còn ResNet18 có nhiều nhất, nhưng số tham số không xếp đúng
+thứ hạng accuracy: lớn hơn hoặc sâu hơn không bảo đảm tốt hơn.
+ResNet giúp tối ưu mạng qua shortcut; ưu điểm đó không tự giải quyết được
+quá khớp hay bảo đảm lịch tối ưu chung là phù hợp nhất cho ResNet.
+Chưa có ablation hoặc nhiều seed để xác định yếu tố nào quyết định mức chênh.
+
+\textbf{ViT tiny so với CNN.} ViT có số tham số gần AlexNet nhưng accuracy
+thấp hơn 15,66 điểm phần trăm. CNN có thiên kiến cấu trúc về tính cục bộ và
+chia sẻ bộ lọc; ViT dùng tương tác toàn chuỗi patch và phải học nhiều quan hệ
+từ dữ liệu. Nghiên cứu ViT chỉ ra vai trò của lượng dữ liệu và thiên kiến cấu
+trúc khi huấn luyện \cite{dosovitskiy2021vit}. Trong thí nghiệm này chỉ có
+45.000 ảnh train, không augmentation, không pretrained; ViT cũng không có
+dropout trong encoder. Các điều kiện này phù hợp với giả thuyết rằng ViT
+khó tổng quát hóa hơn ba CNN, dù loss train giảm rất thấp. Attention cho phép
+nhìn toàn ảnh nhưng không bảo đảm sử dụng đúng dấu hiệu vật thể; nền vẫn có
+thể trở thành tín hiệu gây nhầm. Kết quả 68,21\% vẫn cao hơn HOG--SVM, nên
+ViT học được biểu diễn hữu ích trong cấu hình này.
+
+\textbf{Hiệu quả và giới hạn phép so sánh.} VGG11-BN mất khoảng 2,19 giờ,
+ngắn hơn AlexNet 1,29 giờ, nhưng giảm 4,35 điểm phần trăm accuracy.
+ResNet18 mất khoảng 6,51 giờ, dài hơn AlexNet khoảng 3,03 giờ, trong khi
+accuracy thấp hơn. Vì vậy, AlexNet có sự cân bằng thuận lợi giữa accuracy
+và thời gian trong lần chạy này. Thời gian train không thay thế thời gian
+inference, bộ nhớ cực đại hay chi phí năng lượng. Các mạng dùng MPS; baseline
+NumPy có cài đặt và thiết bị thực thi khác. Cùng số mẫu và seed giúp đối chiếu
+dữ liệu, còn 200 epoch và 200 cây không tạo ngân sách tính toán ngang nhau.
+Một lần chạy chưa đủ để đánh giá độ ổn định hay ý nghĩa thống kê của thứ hạng.

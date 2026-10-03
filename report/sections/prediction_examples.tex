@@ -1,0 +1,89 @@
+\subsection{Minh họa kết quả dự đoán trên cùng ảnh test}
+Các hình dưới đây được sinh bằng suy luận từ checkpoint tốt nhất đã lưu,
+không huấn luyện lại. Ảnh giữ nguyên RGB $32\times32$, chỉ được phóng lớn
+bằng nearest-neighbor để nhìn rõ; không dùng ảnh tổng hợp. Mỗi mạng dùng
+đúng mean và std lưu trong checkpoint, chế độ \texttt{eval()} và
+\texttt{inference\_mode()}, suy luận trên CPU cho phần minh họa.
+Cùng 10 ảnh được dùng cho cả bốn mạng: lấy ảnh đầu tiên của từng lớp theo
+thứ tự file test chính thức, tương ứng index
+3, 6, 25, 0, 22, 12, 4, 13, 1 và 11.
+Quy tắc chọn ảnh không phụ thuộc kết quả dự đoán.
+
+Trên hình, \texttt{True} là nhãn thật, \texttt{Pred} là nhãn dự đoán;
+viền xanh biểu thị đúng, viền đỏ biểu thị sai.
+\texttt{p(top-1)} là giá trị softmax của lớp có điểm cao nhất, làm tròn đến
+một chữ số thập phân theo phần trăm; số hiển thị 100,0\% có thể là giá trị
+gần 1 đã được làm tròn. Đây là điểm mô hình, không phải accuracy của ảnh
+hay xác suất đã được hiệu chuẩn. Mười ảnh minh họa không thay thế đánh giá
+trên đủ 10.000 ảnh test trong Bảng~\ref{tab:results}.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.99\linewidth]{assets/figures/alexnet_predictions.png}
+\caption{AlexNet: checkpoint epoch 193, cùng 10 ảnh test, mỗi lớp một ảnh.}
+\label{fig:pred-alexnet}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.99\linewidth]{assets/figures/vgg11_predictions.png}
+\caption{VGG11-BN: checkpoint epoch 130, các ảnh và thứ tự giống Hình~\ref{fig:pred-alexnet}.}
+\label{fig:pred-vgg}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.99\linewidth]{assets/figures/resnet18_predictions.png}
+\caption{ResNet18: checkpoint epoch 184, các ảnh và thứ tự giống Hình~\ref{fig:pred-alexnet}.}
+\label{fig:pred-resnet}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.99\linewidth]{assets/figures/vit_tiny_predictions.png}
+\caption{ViT tiny: checkpoint epoch 180, các ảnh và thứ tự giống Hình~\ref{fig:pred-alexnet}.}
+\label{fig:pred-vit}
+\end{figure}
+
+\textbf{Đối chiếu cùng mẫu.} Ảnh \#25 có nhãn \emph{bird}: AlexNet và ResNet18
+phân loại đúng với softmax top-1 khoảng 64,8\% và 55,8\%, trong khi VGG11-BN
+nhầm thành \emph{cat} với 99,9\%. ViT tiny phân loại đúng ảnh này, dù accuracy
+tổng thể thấp hơn VGG11-BN. Điều đó cho thấy mô hình đứng cao hơn trong bảng
+không nhất thiết đúng trên mọi ảnh mà mô hình thấp hơn làm đúng.
+Ở ảnh \#6, ViT nhầm \emph{automobile} thành \emph{truck} với 42,5\%; ba CNN
+đều đúng. ViT còn nhầm \#22 từ \emph{deer} thành \emph{airplane} và \#13 từ
+\emph{horse} thành \emph{dog}. Các sai khác minh họa tính phụ thuộc mẫu của
+quyết định và giới hạn khi diễn giải một nhóm ảnh nhỏ.
+
+\subsection{Ví dụ dự đoán sai và hiện tượng tự tin quá mức}
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.99\linewidth]{assets/figures/alexnet_prediction_errors.png}
+\caption{Mười lỗi đầu tiên của AlexNet trong 500 ảnh test đầu (index 0--499), sắp theo index tăng dần; nhóm này được chọn có điều kiện là dự đoán sai.}
+\label{fig:pred-errors}
+\end{figure}
+
+Hình~\ref{fig:pred-errors} được chọn theo một quy tắc khác với nhóm mỗi lớp
+một ảnh: lấy mười lỗi đầu tiên trong 500 ứng viên để quan sát kiểu lỗi,
+không để ước lượng accuracy. Các index là
+24, 32, 33, 35, 37, 52, 53, 57, 58 và 59.
+Ảnh \#37, \emph{automobile}$\rightarrow$\emph{truck}, có hai lớp cùng đặc điểm
+xe và đường nét gần nhau. Ảnh \#57, \emph{horse}$\rightarrow$\emph{dog}, cho
+thấy khó khăn ở động vật có nhiều phần thân không rõ tại độ phân giải thấp.
+Ảnh \#52, \emph{airplane}$\rightarrow$\emph{horse}, có hình dáng vật thể và
+nền khó tách khi phóng lớn. Những quan sát này gợi ý dấu hiệu thị giác có
+thể gây nhầm; ảnh minh họa chưa xác định chính xác vùng nào khiến mạng ra quyết định.
+
+Một số lỗi có softmax rất cao: \#24 nhầm \emph{dog} thành \emph{deer} với
+khoảng 99,9995\%, \#37 nhầm xe với khoảng 99,9614\%.
+Do đó không nên dùng riêng ngưỡng softmax cao để xem một dự đoán là chắc chắn
+đúng. Hiện tượng này cũng phù hợp với đường validation loss tăng dù train
+loss gần 0: cross-entropy phạt mạnh dự đoán sai có độ tự tin cao.
+Để đo mức hiệu chuẩn hoặc kiểm tra nguyên nhân lỗi, cần đánh giá riêng các
+chỉ số hiệu chuẩn và phân tích vùng ảnh; báo cáo hiện chỉ kết luận trực tiếp
+về nhãn và điểm đã suy luận.
+
+Thông tin nguồn checkpoint, epoch, SHA-256, index ảnh, nhãn và điểm dự đoán
+được lưu tại \path{report/assets/results/prediction_examples.json}.
+Các phân bố softmax của 500 ảnh ứng viên cho mỗi mạng được lưu trong
+\path{report/assets/results/*_predict_examples.npz}, phục vụ tái kiểm tra.
