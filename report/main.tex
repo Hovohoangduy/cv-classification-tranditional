@@ -22,121 +22,123 @@
 \maketitle
 
 \begin{abstract}
-Báo cáo nghiên cứu phân loại ảnh CIFAR-10 bằng các mô hình học sâu AlexNet,
-VGG11, ResNet18 và Vision Transformer (ViT tiny). Các kiến trúc được điều chỉnh
-cho ảnh $32\times32$, cài đặt bằng các lớp cơ bản của PyTorch và huấn luyện từ
-trọng số ngẫu nhiên, không sử dụng pretrained. Thực nghiệm dùng 45.000 ảnh huấn
-luyện, 5.000 ảnh kiểm định và 10.000 ảnh kiểm tra; mỗi mạng được huấn luyện 200
-epoch và chọn checkpoint theo accuracy kiểm định. Sáu cấu hình Pixel, HOG và
-SIFT phẳng kết hợp SVM hoặc Random Forest được giữ làm mốc so sánh.
-AlexNet đạt accuracy 83,87\% và macro-F1 0,8381, cao nhất trong các cấu hình
-đã chạy; ViT tiny đạt 68,21\%. Báo cáo phân tích hiệu quả học biểu diễn,
-chi phí huấn luyện và giới hạn tổng quát hóa của các mô hình.
+Báo cáo so sánh AlexNet, VGG11-BN, ResNet18 và Vision Transformer (ViT tiny)
+trong bài toán phân loại ảnh CIFAR-10. Các mạng được điều chỉnh cho ảnh
+$32\times32$ và huấn luyện từ đầu trong 200 epoch, với 45.000 ảnh huấn luyện,
+5.000 ảnh kiểm định và 10.000 ảnh kiểm tra. Kết quả được đối chiếu với các
+phương pháp dùng pixel thô, HOG và SIFT kết hợp SVM hoặc Random Forest.
+AlexNet đạt độ chính xác 83,87\% và macro-F1 0,8381, cao nhất trong thí nghiệm;
+ViT tiny đạt 68,21\%. Báo cáo tập trung vào khác biệt giữa CNN và ViT,
+chi phí huấn luyện và các lỗi phân loại thường gặp.
 \end{abstract}
 
 \section{Giới thiệu}
-Phân loại ảnh yêu cầu mô hình nhận biết đối tượng dù góc nhìn, màu sắc và nền
-thay đổi. CIFAR-10 gồm 60.000 ảnh màu $32\times32$ thuộc 10 lớp, là bộ dữ liệu
-phù hợp để khảo sát bài toán này ở độ phân giải thấp \cite{krizhevsky2009cifar}.
-Thay vì cố định cách trích xuất đặc trưng trước khi học bộ phân lớp, học sâu
-đồng thời tối ưu biểu diễn ảnh và quyết định phân lớp từ dữ liệu.
+Phân loại ảnh là gán ảnh vào một trong các lớp đã định trước, chẳng hạn
+máy bay, ô tô hoặc mèo. CIFAR-10 gồm 60.000 ảnh màu $32\times32$ thuộc 10 lớp
+\cite{krizhevsky2009cifar}. Độ phân giải nhỏ khiến nhiều chi tiết khó nhận
+biết, đặc biệt ở các lớp có hình dáng gần nhau.
 
-Báo cáo tập trung vào hai hướng: mạng tích chập (CNN) và Vision Transformer.
-AlexNet dùng chuỗi tích chập, ReLU và pooling; VGG tổ chức các tích chập nhỏ theo
-chiều sâu; ResNet bổ sung kết nối tắt để học phần dư
+Báo cáo khảo sát hai nhóm mô hình học sâu: mạng tích chập (CNN) và Vision Transformer.
+AlexNet kết hợp tích chập, ReLU và pooling; VGG xếp chồng các lớp tích chập nhỏ;
+ResNet bổ sung kết nối tắt để học phần dư
 \cite{krizhevsky2012alexnet,simonyan2015vgg,he2016resnet}.
-ViT biểu diễn ảnh bằng một chuỗi patch và dùng self-attention để trao đổi thông
-tin giữa các vùng ảnh \cite{dosovitskiy2021vit}.
+ViT chia ảnh thành các vùng nhỏ (patch) và dùng self-attention để kết hợp
+thông tin giữa các vùng \cite{dosovitskiy2021vit}.
 
-Mục tiêu là cài đặt các biến thể AlexNet, VGG11, ResNet18 và ViT tiny cho
-CIFAR-10, huấn luyện từ đầu và đánh giá accuracy cùng macro-F1 trên tập kiểm tra
-chính thức. Các kết quả truyền thống được giữ lại để đo mức cải thiện so với
-biểu diễn pixel thô hoặc đặc trưng thiết kế thủ công. Phần phương pháp tập trung
-vào học sâu; các baseline chỉ được mô tả ngắn gọn để giải thích phép so sánh.
+Mục tiêu là cài đặt bốn mạng, đánh giá độ chính xác (accuracy) và macro-F1,
+rồi so sánh với các phương pháp truyền thống. Qua đó, báo cáo xem xét lợi ích
+của việc học đặc trưng trực tiếp từ ảnh và những hạn chế của từng cấu hình.
 
 \section{Dữ liệu và tiền xử lý}
-CIFAR-10 cung cấp 50.000 ảnh train và 10.000 ảnh test chính thức
-\cite{krizhevsky2009cifar}. Từ tập train, phép chia phân tầng với seed 42 giữ
-45.000 ảnh để huấn luyện và 5.000 ảnh để kiểm định. Test giữ nguyên 10.000 ảnh
-và được đánh giá sau khi chọn checkpoint của mỗi mạng.
+CIFAR-10 có 50.000 ảnh huấn luyện và 10.000 ảnh kiểm tra chính thức.
+Tập huấn luyện được chia phân tầng với seed 42 thành 45.000 ảnh huấn luyện
+và 5.000 ảnh kiểm định, giữ số mẫu cân bằng giữa các lớp. Tập kiểm tra được
+giữ nguyên và chỉ dùng để đánh giá sau khi chọn bộ trọng số tốt nhất theo
+độ chính xác trên tập kiểm định.
 
 \begin{table}[H]
 \centering
 \caption{Phân chia dữ liệu cho các thí nghiệm.}
 \label{tab:split}
-\begin{tabular}{lrrl}
+\begin{tabular}{lrr}
 \toprule
-Tập & Số ảnh & Số ảnh/lớp & Vai trò \\
+Tập & Số ảnh & Số ảnh/lớp \\
 \midrule
-Huấn luyện & 45.000 & 4.500 & Học thống kê chuẩn hóa và trọng số \\
-Kiểm định & 5.000 & 500 & Chọn checkpoint học sâu \\
-Kiểm tra & 10.000 & 1.000 & Đánh giá cuối \\
+Huấn luyện & 45.000 & 4.500 \\
+Kiểm định & 5.000 & 500 \\
+Kiểm tra & 10.000 & 1.000 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\textbf{Đầu vào học sâu.} Ảnh giữ nguyên ba kênh RGB và kích thước
-$32\times32$. Giá trị pixel được chuyển về $[0,1]$, rồi chuẩn hóa theo từng kênh:
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.85\linewidth]{assets/figures/cifar10_samples.png}
+\caption{Ảnh mẫu của 10 lớp CIFAR-10, lấy từ tập huấn luyện.}
+\label{fig:dataset-samples}
+\end{figure}
+
+\textbf{Đầu vào của mô hình học sâu.} Ảnh giữ nguyên ba kênh RGB và kích thước
+$32\times32$. Giá trị điểm ảnh được chia cho 255 để đưa về khoảng $[0,1]$.
+Sau đó, ở mỗi kênh màu, giá trị này được trừ đi trung bình và chia cho
+độ lệch chuẩn:
 \begin{equation}
  \hat{I}_{c,h,w}=\frac{I_{c,h,w}/255-\mu_c^{\mathrm{train}}}
  {\max(\sigma_c^{\mathrm{train}},10^{-6})}.
 \end{equation}
-Trung bình và độ lệch chuẩn được tính trên tập train, sau đó giữ cố định cho
-validation và test. Lần chạy này không dùng tăng cường dữ liệu như lật ảnh,
-cắt ngẫu nhiên hoặc biến đổi màu.
+Trong công thức, $\mu_c^{\mathrm{train}}$ và $\sigma_c^{\mathrm{train}}$
+là trung bình và độ lệch chuẩn của kênh màu $c$, tính từ tập huấn luyện.
+Các giá trị này được giữ nguyên khi xử lý ảnh kiểm định và kiểm tra.
+Thí nghiệm không dùng tăng cường dữ liệu.
 
-\textbf{Đầu vào baseline.} Pixel thô được trải phẳng thành 3.072 chiều.
-HOG và SIFT dùng ảnh xám $I=0.299R+0.587G+0.114B$; vector đặc trưng được chuẩn
-hóa theo từng chiều bằng thống kê của train. Hai nhánh dùng cách chuẩn hóa phù
-hợp với loại đầu vào, không dùng thống kê test để học tham số.
+\textbf{Đầu vào của mô hình truyền thống.} Pixel thô được trải phẳng thành vector 3.072 chiều.
+HOG và SIFT dùng ảnh xám $I=0.299R+0.587G+0.114B$. Mỗi chiều của vector
+đặc trưng cũng được trừ đi trung bình và chia cho độ lệch chuẩn tính từ
+tập huấn luyện.
 
-\subsection{Tổng quan pipeline}
+\subsection{Quy trình thực nghiệm}
 \begin{figure}[H]
 \centering
 \includegraphics[width=0.96\linewidth]{assets/figures/pipeline_overview.png}
-\caption{Pipeline tổng quan: hai nhánh dùng cùng cỡ dữ liệu, chỉ học thống kê chuẩn hóa từ train; validation chọn checkpoint học sâu và test chỉ đi vào đánh giá cuối.}
+\caption{Quy trình chuẩn hóa dữ liệu, huấn luyện và đánh giá hai nhóm mô hình.}
 \label{fig:pipeline}
 \end{figure}
-Hình~\ref{fig:pipeline} phân biệt bước học tham số với bước đánh giá.
-Nhánh truyền thống dùng đặc trưng cố định rồi học SVM hoặc Random Forest;
-nhánh học sâu tối ưu đồng thời biểu diễn và bộ phân lớp. Sau khi cố định mô
-hình và thống kê chuẩn hóa, test được xử lý và suy luận để tạo các chỉ số
-so sánh. Ảnh dự đoán minh họa được lấy từ checkpoint đã chọn, không dùng để
-chọn lại trọng số hoặc điều chỉnh siêu tham số.
+Bước chuẩn hóa điều chỉnh thang giá trị của dữ liệu đầu vào theo cách
+đã mô tả ở trên. Nhánh truyền thống trích xuất đặc trưng rồi huấn luyện SVM hoặc Random Forest.
+Nhánh học sâu học đồng thời đặc trưng và bộ phân lớp. Cả hai được đánh giá
+trên cùng tập kiểm tra để so sánh kết quả.
 
 \input{sections/methods_detail.tex}
 
 \section{Thiết lập thí nghiệm}
-Bốn mạng được định nghĩa bằng các lớp cơ bản của PyTorch, khởi tạo ngẫu nhiên
-và huấn luyện độc lập trên MPS; không dùng model zoo hay pretrained weights.
-Cùng seed 42, số mẫu train/validation/test là 45.000/5.000/10.000.
-Mỗi mạng chạy 200 epoch với AdamW, learning rate $3\times10^{-4}$,
-weight decay $10^{-4}$ và batch size 128. Gradient norm được giới hạn ở 1,0.
-Checkpoint có accuracy validation cao nhất được dùng để đánh giá test;
-checkpoint epoch 200 không mặc nhiên là checkpoint tốt nhất.
+Bốn mạng được cài đặt bằng các lớp cơ bản của PyTorch, khởi tạo ngẫu nhiên
+và huấn luyện độc lập, không dùng trọng số huấn luyện sẵn.
+Mỗi mạng chạy 200 epoch với seed 42, AdamW, tốc độ học $3\times10^{-4}$,
+weight decay $10^{-4}$ và batch size 128. Tốc độ học được giữ cố định;
+chuẩn gradient được giới hạn ở 1,0.
 
-Các baseline SVM chạy 200 epoch, batch size 256, learning rate ban đầu 0,01
-và điều chuẩn $10^{-4}$. Random Forest dùng 200 cây, độ sâu tối đa 15,
+SVM chạy 200 epoch với batch size 256, tốc độ học ban đầu 0,01
+và hệ số điều chuẩn $10^{-4}$. Random Forest dùng 200 cây, độ sâu tối đa 15,
 tối thiểu 4 mẫu để chia nút và 2 mẫu ở nút lá. Mỗi nút xét 16 ngưỡng trên
-$\sqrt{d}$ chiều đặc trưng chọn ngẫu nhiên. Số epoch và số cây là hai loại ngân
-sách khác nhau; phép so sánh dùng cùng cỡ dữ liệu và seed, không bảo đảm cùng
-chi phí tính toán hay mức độ tối ưu siêu tham số.
+$\sqrt{d}$ chiều đặc trưng chọn ngẫu nhiên. 
 
-Với ma trận nhầm lẫn $C_{ij}$ (hàng là nhãn thật, cột là nhãn dự đoán), các chỉ số là
+Với ma trận nhầm lẫn $C_{ij}$ (hàng là nhãn thật, cột là nhãn dự đoán),
+accuracy, precision, recall và F1 được tính như sau:
 \begin{equation}
  \mathrm{Accuracy}=\frac{\sum_k C_{kk}}{\sum_{i,j}C_{ij}},\quad
  P_k=\frac{C_{kk}}{\sum_i C_{ik}},\quad
  R_k=\frac{C_{kk}}{\sum_j C_{kj}},\quad
  F1_k=\frac{2P_kR_k}{P_k+R_k}.
 \end{equation}
-Macro-F1 là trung bình F1 của 10 lớp; giá trị bằng 0 được dùng khi mẫu số bằng 0.
+Accuracy đo tỷ lệ ảnh được phân loại đúng. Macro-F1 là trung bình F1 của
+10 lớp, cho mỗi lớp trọng số ngang nhau. Nếu mẫu số bằng 0, chỉ số tương ứng được đặt bằng 0.
 Các chỉ số trong bảng được trình bày trên thang $[0,1]$.
 
 \section{Kết quả và thảo luận}
 \subsection{Bảng so sánh tổng hợp}
 \begin{table}[H]
 \centering
-\caption{So sánh phương pháp truyền thống và học sâu trên 10.000 ảnh test CIFAR-10.}
+\caption{Kết quả trên 10.000 ảnh kiểm tra CIFAR-10.}
 \label{tab:results}
 \begin{tabular}{llrrr}
 \toprule
@@ -147,78 +149,42 @@ Nhóm & Cấu hình & $N_{test}$ & Accuracy & Macro-F1 \\
 \end{tabular}
 \end{table}
 
-Bảng~\ref{tab:results} tổng hợp sáu cấu hình truyền thống và bốn mạng học sâu.
-Các baseline lấy từ \path{outputs/metrics/*_200.json}; kết quả học sâu lấy từ
-\path{outputs/deep_models_200_gn/*_metrics.json}.
-
-AlexNet đạt accuracy 0,8387 và macro-F1 0,8381, cao nhất trong các cấu hình này.
-So với baseline tốt nhất HOG--SVM (0,5319 và 0,5305), AlexNet tăng 30,68 điểm
-phần trăm accuracy và khoảng 30,76 điểm phần trăm macro-F1.
-ResNet18 đạt 0,8145, VGG11-BN đạt 0,7952 và ViT tiny đạt 0,6821 accuracy.
-Ngay cả ViT tiny cũng vượt HOG--SVM 15,02 điểm phần trăm accuracy.
+Bảng~\ref{tab:results} cho thấy cả bốn mạng học sâu đều đạt kết quả cao hơn
+các phương pháp truyền thống. AlexNet đứng đầu với accuracy 83,87\% và
+macro-F1 0,8381, tiếp theo là ResNet18 (81,45\%), VGG11-BN (79,52\%) và
+ViT tiny (68,21\%). Trong nhóm truyền thống, HOG--SVM đạt kết quả tốt nhất
+với accuracy 53,19\% và macro-F1 0,5305.
 
 \input{assets/results/deep_models_section.tex}
 
 \input{sections/discussion_detail.tex}
 
-\subsection{Diễn biến huấn luyện và chi phí}
-\begin{figure}[H]
-\centering
-\includegraphics[width=0.90\linewidth]{assets/figures/deep_learning_curves.png}
-\caption{Cross-entropy train và validation của bốn mạng; đường dọc đánh dấu epoch có accuracy validation tốt nhất.}
-\label{fig:deep-curves}
-\end{figure}
-
-Hình~\ref{fig:deep-curves} được dựng trực tiếp từ lịch sử 200 epoch trong
-metrics. Loss train giảm xuống rất thấp, trong khi loss validation tăng về
-cuối quá trình ở nhiều mạng. Chênh lệch này cho thấy dấu hiệu overfitting;
-accuracy validation và cross-entropy không nhất thiết biến thiên cùng chiều.
-Vì vậy, việc chọn checkpoint theo validation thay vì dùng epoch cuối là cần thiết.
-Các epoch được chọn lần lượt là 193, 130, 184 và 180 cho AlexNet, VGG11-BN,
-ResNet18 và ViT tiny.
-
-Bảng~\ref{tab:deep-training} cho thấy VGG11-BN mất khoảng 2,19 giờ huấn luyện,
-AlexNet 3,48 giờ, ViT tiny 5,18 giờ và ResNet18 6,51 giờ. Trong lần chạy này,
-VGG11-BN có thời gian ngắn nhất, còn AlexNet cho accuracy cao nhất.
-Đây là thời gian được ghi bởi chương trình trong quá trình train, bao gồm
-đánh giá validation và lưu checkpoint, không phải benchmark suy luận độc lập.
-Chi phí còn phụ thuộc thiết bị và cài đặt; 200 epoch giữa các kiến trúc không
-đồng nghĩa với cùng lượng tính toán.
-
 \subsection{Phân tích lỗi của mô hình tốt nhất}
 \begin{figure}[H]
 \centering
 \includegraphics[width=0.65\linewidth]{assets/figures/deep_best_confusion.png}
-\caption{Ma trận nhầm lẫn của checkpoint AlexNet được chọn theo validation; hàng là nhãn thật, cột là nhãn dự đoán, mỗi lớp có 1.000 ảnh test.}
+\caption{Ma trận nhầm lẫn của AlexNet: hàng là nhãn thật, cột là nhãn dự đoán; mỗi lớp có 1.000 ảnh kiểm tra.}
 \label{fig:deep-confusion}
 \end{figure}
 
-Các giá trị trong Hình~\ref{fig:deep-confusion} lấy từ kết quả test đã lưu.
-AlexNet đạt F1 cao nhất ở \emph{automobile} (0,9208) và \emph{ship} (0,9004),
-trong khi \emph{cat} có F1 thấp nhất (0,7077) và recall 0,695.
-Cặp nhầm lẫn lớn nhất là \emph{dog}$\rightarrow$\emph{cat} với 139 ảnh;
-chiều ngược lại có 68 ảnh. Hai cặp \emph{bird}$\rightarrow$\emph{deer} và
-\emph{cat}$\rightarrow$\emph{bird} đều có 59 ảnh.
-Như vậy, học sâu cải thiện kết quả tổng thể nhưng vẫn gặp khó khăn ở một số
-lớp động vật. Hình dáng gần nhau ở độ phân giải thấp là một cách giải thích
-cần được kiểm tra thêm bằng các ảnh dự đoán sai.
+AlexNet nhận diện tốt nhất lớp ô tô (\emph{automobile}, F1 0,9208) và
+tàu thủy (\emph{ship}, F1 0,9004). Lớp mèo (\emph{cat}) khó nhất, với
+F1 0,7077 và recall 69,5\%. Lỗi phổ biến nhất là nhầm chó thành mèo
+(139 ảnh); chiều ngược lại có 68 ảnh. Kết quả cho thấy mô hình vẫn khó
+phân biệt một số lớp động vật trên ảnh có độ phân giải thấp.
 
 \input{sections/prediction_examples.tex}
 
 \section{Kết luận}
-Báo cáo đã cài đặt và đánh giá các biến thể AlexNet, VGG11-BN, ResNet18 và
-ViT tiny trên CIFAR-10, đồng thời giữ kết quả Pixel, HOG và SIFT phẳng kết hợp
-SVM hoặc Random Forest để so sánh. Trên 10.000 ảnh test chính thức, AlexNet đạt
-83,87\% accuracy và macro-F1 0,8381, vượt baseline tốt nhất HOG--SVM 30,68 điểm
-phần trăm accuracy. ResNet18, VGG11-BN và ViT tiny cũng cao hơn toàn bộ baseline
-trong bảng.
+Bốn mô hình học sâu đều vượt các phương pháp truyền thống trong thí nghiệm
+này. AlexNet đạt kết quả tốt nhất với accuracy 83,87\% và macro-F1 0,8381.
+Các CNN cũng đạt độ chính xác cao hơn ViT tiny khi huấn luyện từ đầu trên
+CIFAR-10 và không dùng tăng cường dữ liệu.
 
-Kết quả cho thấy lợi ích của học biểu diễn trực tiếp từ ảnh trong cấu hình
-đã khảo sát. CNN đạt kết quả tốt hơn ViT tiny khi cùng huấn luyện từ đầu,
-không dùng tăng cường dữ liệu; tuy nhiên một seed và một bộ siêu tham số chưa
-đủ để xếp hạng tổng quát các kiến trúc. Hướng cải thiện tiếp theo là tăng cường
-dữ liệu, điều chỉnh lịch learning rate và điều chuẩn bằng validation, sau đó
-lặp lại với nhiều seed. Tập test cần tiếp tục được giữ cho đánh giá cuối.
+Kết quả cho thấy lợi ích của việc học đặc trưng trực tiếp từ ảnh, nhưng chỉ
+phản ánh một cách chia dữ liệu và một bộ siêu tham số. Hướng cải thiện chính
+là tăng cường dữ liệu, điều chỉnh tốc độ học và điều chuẩn trên tập kiểm định,
+sau đó lặp lại thí nghiệm với nhiều seed để đánh giá độ ổn định.
 
 \clearpage
 \bibliographystyle{plain}

@@ -89,6 +89,12 @@ bash report/build.sh
 
 PDF được tạo trực tiếp tại `report/cifar10_traditional_cv_report.pdf`. Script tự dọn file phụ trợ LaTeX và không tạo thêm thư mục `output/`.
 
+Tạo lại bốn sơ đồ kiến trúc theo cài đặt CIFAR-10 bằng `python -m report.generate_architectures`. Sơ đồ được xuất dưới dạng PDF vector và PNG tại `report/assets/figures/`.
+
+Tạo lại hình ảnh mẫu của 10 lớp CIFAR-10 bằng `python -m report.generate_dataset_samples`; các ảnh được lấy từ tập huấn luyện chính thức.
+
+Để tạo lại ảnh minh họa từ bốn checkpoint đã lưu trong `outputs/deep_models_200_gn/`, chạy `python -m report.generate_visuals` trước khi biên dịch. Mỗi mô hình chỉ minh họa một ảnh đúng và một ảnh sai, chọn mẫu ở giữa mỗi nhóm sau khi sắp theo cross-entropy trên đủ 10.000 ảnh test. Index, điểm xếp hạng và nguồn checkpoint được lưu trong `report/assets/results/prediction_examples.json`; thao tác này chỉ suy luận, không huấn luyện lại.
+
 Tài liệu đầy đủ về kiến trúc, luồng xử lý, format artifact và công dụng từng file nằm tại [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Thí nghiệm học sâu độc lập

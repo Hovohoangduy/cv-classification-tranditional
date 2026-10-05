@@ -31,7 +31,7 @@ def _comparison_200(results: list[dict], report_dir: Path) -> Path | None:
             print("Traditional metrics are incompatible; comparison chart skipped")
             return None
     # Keep the common table and chart tied to exactly the same measured runs.
-    rows = [r"% Traditional baselines: outputs/metrics/*_200.json"]
+    rows = [r"% Traditional baselines"]
     for (label, _), item in zip(baselines, traditional):
         rows.append(f"Truyền thống & {label} & {item['samples']['test']} & "
                     f"{item['test']['accuracy']:.4f} & {item['test']['macro_f1']:.4f}" + r" \\")
@@ -45,20 +45,6 @@ def _comparison_200(results: list[dict], report_dir: Path) -> Path | None:
     rows[-1] = rows[-1].rstrip("\\ ")
     (report_dir / "assets" / "results" / "comparison_results.tex").write_text(
         "\n".join(rows) + "\n", encoding="utf-8")
-    baseline = next(item for item in traditional if item["feature"] == "hog" and
-                    item["model"] == "linear_svm")
-    baseline_errors = round((1 - baseline["test"]["accuracy"]) * baseline["samples"]["test"])
-    gain_rows = []
-    for item in sorted(results, key=lambda item: item["test"]["accuracy"], reverse=True):
-        errors = round((1 - item["test"]["accuracy"]) * item["samples"]["test"])
-        accuracy_gain = 100 * (item["test"]["accuracy"] - baseline["test"]["accuracy"])
-        f1_gain = 100 * (item["test"]["macro_f1"] - baseline["test"]["macro_f1"])
-        reduction = 100 * (baseline_errors - errors) / baseline_errors
-        gain_rows.append(f"{display_names[item['model']].split(' (')[0]} & {accuracy_gain:.2f} & "
-                         f"{f1_gain:.2f} & {errors:,} & {reduction:.2f}" + r"\% \\")
-    gain_rows[-1] = gain_rows[-1].rstrip("\\ ")
-    (report_dir / "assets" / "results" / "deep_gains.tex").write_text(
-        "\n".join(gain_rows) + "\n", encoding="utf-8")
     import os
     os.environ.setdefault("MPLCONFIGDIR", "outputs/.matplotlib")
     os.environ.setdefault("MPLBACKEND", "Agg")
@@ -138,14 +124,14 @@ def generate_report(metric_paths: list[Path]) -> None:
     sample_counts = results[0]["samples"]
     epochs = results[0]["epochs"]
     run_type = results[0]["run_type"]
-    display_type = "kiểm tra nhanh" if run_type == "quick smoke test" else "thí nghiệm theo cấu hình"
+    display_type = "kiểm tra nhanh" if run_type == "quick smoke test" else "thí nghiệm"
     if any(item["samples"] != sample_counts or item["epochs"] != epochs for item in results):
         raise ValueError("Cannot combine experiments with different samples or epochs")
     alexnet_has_groupnorm = any(item["model"] == "alexnet" and
                                "GroupNorm" in item["architecture"] for item in results)
-    alexnet_description = ("AlexNet dùng năm convolution với GroupNorm và classifier hai lớp; " if
+    alexnet_description = ("AlexNet dùng năm lớp tích chập với GroupNorm và bộ phân lớp hai lớp; " if
                            alexnet_has_groupnorm else
-                           "AlexNet dùng năm convolution và classifier hai lớp; ")
+                           "AlexNet dùng năm lớp tích chập và bộ phân lớp hai lớp; ")
     report_dir = Path("report")
     result_dir = report_dir / "assets" / "results"
     result_dir.mkdir(parents=True, exist_ok=True)
@@ -153,68 +139,71 @@ def generate_report(metric_paths: list[Path]) -> None:
     if comparison_path is not None:
         _deep_diagnostics(results, report_dir)
     md = ["# CIFAR-10: AlexNet, VGG11, ResNet18 và ViT", "",
-          "Các mô hình được định nghĩa từ đầu bằng các lớp cơ bản của PyTorch, "
-          "khởi tạo trọng số ngẫu nhiên và huấn luyện riêng. Không dùng pretrained/model zoo.", "",
-          "Các biến thể cho ảnh 32×32: " + alexnet_description +
-          "VGG11-BN giữ tám convolution và năm pooling nhưng giảm số kênh; "
-          "ResNet18 giữ tám residual block với stem 3×3 và base width 32; "
-          "ViT tiny dùng patch 4×4, embedding 192, sáu block và ba attention head.", "",
-          f"Loại chạy: **{display_type}**. Seed: **{results[0]['seed']}**. "
+          "Bốn mạng được cài đặt bằng các lớp cơ bản của PyTorch và huấn luyện "
+          "từ trọng số ngẫu nhiên, không dùng trọng số huấn luyện sẵn.", "",
+          "Các kiến trúc được điều chỉnh cho ảnh 32×32: " + alexnet_description +
+          "VGG11-BN dùng tám lớp tích chập với số kênh giảm; "
+          "ResNet18 dùng tám block phần dư, lớp tích chập đầu 3×3 và 32 kênh ban đầu; "
+          "ViT tiny dùng patch 4×4, vector 192 chiều, sáu block và ba attention head.", "",
+          f"Chế độ: **{display_type}**. Seed: **{results[0]['seed']}**. "
           f"Epoch tối đa: **{epochs}**. "
-          f"Mẫu train/validation/test: **{sample_counts['train']}/{sample_counts['validation']}/{sample_counts['test']}**. "
+          f"Số ảnh huấn luyện/kiểm định/kiểm tra: **{sample_counts['train']}/{sample_counts['validation']}/{sample_counts['test']}**. "
           f"Thiết bị: **{results[0]['device']}**.", "",
-          "Tập validation được tách phân tầng từ 50.000 ảnh train chính thức. "
-          "Trọng số tốt nhất được chọn bằng accuracy validation; tập test chỉ được đánh giá sau đó. "
-          "Chuẩn hóa dùng thống kê của tập train đã chọn. Không tăng cường dữ liệu.", "",
-          "| Mô hình | Số tham số | Epoch tốt nhất | Validation accuracy | Test accuracy | Test macro-F1 | Giây train |",
+          "Tập kiểm định được tách phân tầng từ 50.000 ảnh huấn luyện chính thức. "
+          "Bộ trọng số tốt nhất được chọn theo accuracy kiểm định, sau đó mới đánh giá trên tập kiểm tra. "
+          "Chuẩn hóa dùng thống kê của tập huấn luyện; không dùng tăng cường dữ liệu.", "",
+          "| Mô hình | Số tham số | Epoch chọn | Accuracy kiểm định | Accuracy kiểm tra | Macro-F1 kiểm tra | Huấn luyện (giờ) |",
           "|---|---:|---:|---:|---:|---:|---:|"]
     tex_rows = []
     for item in results:
-        md.append(f"| {item['model']} | {item['parameters']:,} | {item['best_epoch']} | "
-                  f"{item['validation']['accuracy']:.4f} | {item['test']['accuracy']:.4f} | "
-                  f"{item['test']['macro_f1']:.4f} | {item['training_seconds']:.1f} |")
         name = {"alexnet": "AlexNet (GroupNorm)", "vgg11": "VGG11-BN",
                 "resnet18": "ResNet18", "vit_tiny": "ViT tiny"}[item["model"]]
+        if item["model"] == "alexnet" and not alexnet_has_groupnorm:
+            name = "AlexNet"
+        md.append(f"| {name} | {item['parameters']:,} | {item['best_epoch']} | "
+                  f"{item['validation']['accuracy']:.4f} | {item['test']['accuracy']:.4f} | "
+                  f"{item['test']['macro_f1']:.4f} | {item['training_seconds'] / 3600:.2f} |")
         tex_rows.append(f"{name} & {item['parameters']:,} & {item['best_epoch']} & "
                         f"{item['validation']['accuracy']:.4f} & "
                         f"{item['training_seconds'] / 3600:.2f}")
-    scope_note = ("Đây là kiểm tra nhanh trên một phần dữ liệu; không dùng các số liệu này "
-                  "để so sánh hiệu năng cuối cùng với thí nghiệm 10.000 ảnh test." if
+    scope_note = ("Kết quả kiểm tra nhanh chỉ dùng để kiểm tra chương trình, "
+                  "không đại diện cho thí nghiệm trên toàn bộ dữ liệu." if
                   run_type == "quick smoke test" else
-                  "Các kết quả này được đo trên đủ 10.000 ảnh test chính thức với "
-                  "đúng cấu hình huấn luyện ghi trên.")
-    md.extend(["", scope_note, "",
-               "Mã chạy: `bash run_deep_models.sh` (đầy đủ) hoặc "
-               "`bash run_deep_models.sh --quick` (kiểm tra luồng). "
-               f"JSON và checkpoint của lần chạy này nằm trong `{Path(metric_paths[0]).parent}/`.", ""])
+                  "Kết quả được đánh giá trên "
+                  f"{sample_counts['test']:,}".replace(",", ".") + " ảnh kiểm tra; "
+                  "accuracy và macro-F1 được trình bày trên thang [0,1].")
+    md.extend(["", scope_note, ""])
     if epochs < 10 and run_type != "quick smoke test":
         md.extend([f"Lưu ý: mới huấn luyện {epochs} epoch; chưa xác nhận các mô hình đã hội tụ.", ""])
     if comparison_path is not None:
         md.extend(["## So sánh với phương pháp truyền thống", "",
                    "![Accuracy và macro-F1 trên CIFAR-10](assets/figures/deep_vs_traditional_200.png)", "",
-                   "SVM và bốn mạng được huấn luyện 200 epoch; Random Forest dùng 200 cây. "
-                   "Các mô hình dùng cùng cỡ tập dữ liệu và seed 42, nhưng chi phí tính toán "
-                   "và thuật toán tối ưu khác nhau.", ""])
+                   "Biểu đồ đối chiếu các mạng học sâu với sáu cấu hình truyền thống. "
+                   "SVM và các mạng chạy 200 epoch; Random Forest dùng 200 cây. "
+                   "Các thí nghiệm dùng cùng số ảnh và seed 42, nhưng khác cách tối ưu và chi phí tính toán.", ""])
     (report_dir / "deep_models_report.md").write_text("\n".join(md), encoding="utf-8")
-    note = ("Đây chỉ là smoke test quy mô nhỏ; các số liệu không được so sánh trực tiếp "
-            "với bảng thí nghiệm truyền thống dùng toàn bộ 10.000 ảnh test." if run_type == "quick smoke test" else
-            "Các số liệu tương ứng đúng với cấu hình và tập mẫu được ghi ở đây. " +
+    note = ("Kết quả kiểm tra nhanh không đại diện cho thí nghiệm trên toàn bộ dữ liệu."
+            if run_type == "quick smoke test" else
             (f"Mới huấn luyện {epochs} epoch; chưa xác nhận mô hình đã hội tụ." if epochs < 10 else ""))
     tex = [r"\subsection{Kết quả huấn luyện các mô hình học sâu}",
            r"\begin{table}[H]", r"\centering", r"\small",
-           r"\caption{Checkpoint và chi phí huấn luyện các mô hình học sâu; accuracy trong khoảng $[0,1]$.}",
+           r"\caption{Epoch được chọn theo accuracy kiểm định và tổng thời gian huấn luyện 200 epoch.}",
            r"\label{tab:deep-training}",
            r"\begin{tabular}{lrrrr}", r"\toprule",
-           r"Mô hình & Tham số & Epoch tốt & Val acc. & Train (giờ) \\",
+           r"Mô hình & Tham số & Epoch chọn & Acc. kiểm định & Thời gian (giờ) \\",
            r"\midrule", (r" \\" + "\n").join(tex_rows) + r" \\", r"\bottomrule",
            r"\end{tabular}", r"\end{table}", note]
     if comparison_path is not None:
-        tex.extend([r"\begin{figure}[H]", r"\centering",
-                    r"\includegraphics[width=0.95\linewidth]{assets/figures/deep_vs_traditional_200.png}",
-                    r"\caption{Accuracy và macro-F1 trên cùng 10.000 ảnh test. SVM và bốn mạng dùng 200 epoch; Random Forest dùng 200 cây.}",
-                    r"\label{fig:comparison}",
-                    r"\end{figure}",
-                    r"Các kết quả có cùng cỡ tập dữ liệu và seed 42, nhưng thuật toán tối ưu và chi phí tính toán khác nhau."])
+        fastest = min(results, key=lambda item: item["training_seconds"])
+        slowest = max(results, key=lambda item: item["training_seconds"])
+        best = max(results, key=lambda item: item["test"]["accuracy"])
+        display_names = {"alexnet": "AlexNet", "vgg11": "VGG11-BN",
+                         "resnet18": "ResNet18", "vit_tiny": "ViT tiny"}
+        hours = lambda item: f"{item['training_seconds'] / 3600:.2f}".replace(".", ",")
+        tex.append(
+            f"{display_names[fastest['model']]} huấn luyện nhanh nhất ({hours(fastest)} giờ), "
+            f"còn {display_names[slowest['model']]} mất nhiều thời gian nhất ({hours(slowest)} giờ). "
+            f"{display_names[best['model']]} đạt accuracy cao nhất với thời gian {hours(best)} giờ.")
     if comparison_path is not None:
         (result_dir / "deep_models_section.tex").write_text("\n".join(tex) + "\n", encoding="utf-8")
         print(f"Updated {report_dir / 'deep_models_report.md'} and integrated comparison artifacts")

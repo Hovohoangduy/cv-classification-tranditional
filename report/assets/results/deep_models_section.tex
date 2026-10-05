@@ -2,11 +2,11 @@
 \begin{table}[H]
 \centering
 \small
-\caption{Checkpoint và chi phí huấn luyện các mô hình học sâu; accuracy trong khoảng $[0,1]$.}
+\caption{Epoch được chọn theo accuracy kiểm định và tổng thời gian huấn luyện 200 epoch.}
 \label{tab:deep-training}
 \begin{tabular}{lrrrr}
 \toprule
-Mô hình & Tham số & Epoch tốt & Val acc. & Train (giờ) \\
+Mô hình & Tham số & Epoch chọn & Acc. kiểm định & Thời gian (giờ) \\
 \midrule
 AlexNet (GroupNorm) & 2,786,890 & 193 & 0.8518 & 3.48 \\
 VGG11-BN & 2,310,186 & 130 & 0.8120 & 2.19 \\
@@ -15,11 +15,5 @@ ViT tiny & 2,693,578 & 180 & 0.6888 & 5.18 \\
 \bottomrule
 \end{tabular}
 \end{table}
-Các số liệu tương ứng đúng với cấu hình và tập mẫu được ghi ở đây. 
-\begin{figure}[H]
-\centering
-\includegraphics[width=0.95\linewidth]{assets/figures/deep_vs_traditional_200.png}
-\caption{Accuracy và macro-F1 trên cùng 10.000 ảnh test. SVM và bốn mạng dùng 200 epoch; Random Forest dùng 200 cây.}
-\label{fig:comparison}
-\end{figure}
-Các kết quả có cùng cỡ tập dữ liệu và seed 42, nhưng thuật toán tối ưu và chi phí tính toán khác nhau.
+
+VGG11-BN huấn luyện nhanh nhất (2,19 giờ), còn ResNet18 mất nhiều thời gian nhất (6,51 giờ). AlexNet đạt accuracy cao nhất với thời gian 3,48 giờ.
